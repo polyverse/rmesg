@@ -1,4 +1,3 @@
-
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -8,6 +7,8 @@ pub enum RMesgError {
     IntegerOutOfBound(String),
     Utf8StringConversionError(String),
     InternalError(String),
+    UnableToObtainSystemTime,
+    UnableToAddDurationToSystemTime,
 }
 impl Error for RMesgError {}
 impl Display for RMesgError {
@@ -21,8 +22,10 @@ impl Display for RMesgError {
                 RMesgError::IntegerOutOfBound(s) => format!("IntegerOutOfBound: {}", s),
                 RMesgError::Utf8StringConversionError(s) =>
                     format!("Utf8StringConversionError: {}", s),
-                RMesgError::InternalError(s) =>
-                    format!("InternalError: {}", s),
+                RMesgError::InternalError(s) => format!("InternalError: {}", s),
+                RMesgError::UnableToObtainSystemTime => "Failed to get SystemTime.".to_owned(),
+                RMesgError::UnableToAddDurationToSystemTime =>
+                    "Failed to add a Duration to SystemTime".to_owned(),
             }
         )
     }
