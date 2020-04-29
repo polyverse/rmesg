@@ -12,12 +12,10 @@ deploy:
   - provider: releases
     file:
       - "target/x86_64-unknown-linux-musl/release/rmesg"
-    skip_cleanup: true
     on:
       tags: true
     edge: true
   - provider: cargo
-    skip_cleanup: true
     edge: true
     on:
       tags: true
