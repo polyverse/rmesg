@@ -1,6 +1,6 @@
 [package]
 name = "rmesg"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Archis Gore <archis@polyverse.com>"]
 edition = "2018"
 license-file = "LICENSE"
@@ -13,6 +13,16 @@ travis-ci = { repository = "polyverse/rmesg", branch = "master" }
 description = """This is a fully Rust-based implementation of the popular dmesg Linux utility, giving
  programmatic access to the kernel log buffer."""
 
+[lib]
+name = "rmesg"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rmesg-cli"
+path = "src/main.rs"
+
 [dependencies]
 libc = "0.2.69"
 cfg-if = "0.1.10"
+enum-display-derive = "0.1.0"
+errno = "0.2.5"

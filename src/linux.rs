@@ -1,32 +1,18 @@
+use crate::error::RMesgError;
+
 use libc;
 use std::convert::TryFrom;
-use std::error::Error;
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use errno::errno;
+use std::fmt::Display;
 
 // Can be removed once upstream libc supports it.
 extern "C" {
     fn klogctl(syslog_type: libc::c_int, buf: *mut libc::c_char, len: libc::c_int) -> libc::c_int;
 }
 
-#[derive(Debug)]
-pub enum KLogCtlError {
-    IntegerOutOfBound(String),
-}
-impl Error for KLogCtlError {}
-impl Display for KLogCtlError {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(
-            f,
-            "KLogCtlError:: {}",
-            match self {
-                KLogCtlError::IntegerOutOfBound(s) => format!("{}", s),
-            }
-        )
-    }
-}
-
 // SYSLOG constants
 // https://linux.die.net/man/3/klogctl
+#[derive(Debug, Display, Clone)]
 pub enum KLogType {
     SyslogActionClose,
     SyslogActionOpen,
@@ -41,33 +27,75 @@ pub enum KLogType {
     SyslogActionSizeBuffer,
 }
 
-type SignedInt = i32;
+pub type SignedInt = libc::c_int;
 
-// klogctl implementation from MUSL
-// https://github.com/rofl0r/musl/blob/master/src/linux/klogctl.c
-pub fn safe_klogctl(
+/*
+    Safely wraps the klogctl for Rusty types
+*/
+pub fn safely_wrapped_klogctl(
     klogtype: KLogType,
-    buf: *mut i8,
-    buflen_usize: usize,
-) -> Result<SignedInt, KLogCtlError> {
-    let type_signed_int = klogtype as SignedInt;
-    let klt: libc::c_int = type_signed_int;
-    let buflen: i32 = match i32::try_from(buflen_usize) {
+    buf_u8: &mut [u8],
+) -> Result<usize, RMesgError> {
+
+    // convert klogtype
+    let klt = klogtype.clone() as libc::c_int;
+
+    // extract mutable u8 raw pointer from buf
+    // and typecast it (very dangerously) to i8
+    // fortunately it's all one-byte long so
+    // should be reasonably okay.
+    let buf_i8 = buf_u8.as_mut_ptr() as *mut i8;
+
+    let buflen  = match libc::c_int::try_from(buf_u8.len()) {
         Ok(i) => i,
         Err(e) => {
-            return Err(KLogCtlError::IntegerOutOfBound(format!(
-                "Error converting usize {} into i32: {:?}",
-                buflen_usize, e
+            return Err(RMesgError::IntegerOutOfBound(format!(
+                "Error converting buffer length for klogctl from <usize>::({}) into <c_int>: {:?}",
+                buf_u8.len(), e
             )))
         }
     };
-    unsafe {
-        let response: libc::c_int = klogctl(klt, buf, buflen);
-        *buf = 10;
-        let rusty_response: SignedInt = response;
-        return Ok(rusty_response);
+
+
+    let response_cint: libc::c_int = unsafe { klogctl(klt, buf_i8, buflen)};
+
+    if response_cint < 0 {
+        let err = errno();
+        return Err(RMesgError::InternalError(format!("Request ({}) to klogctl failed. errno={}", klogtype, err)));
     }
+
+    let response  = match usize::try_from(response_cint) {
+        Ok(i) => i,
+        Err(e) => {
+            return Err(RMesgError::IntegerOutOfBound(format!(
+                "Error converting response from klogctl from <c_int>::({}) into <usize>: {:?}",
+                response_cint, e
+            )))
+        }
+    };
+
+    return Ok(response);
 }
+
+pub fn rmesg() -> Result<String, RMesgError> {
+    let mut dummy_buffer: Vec<u8> = vec![0; 0];
+    let kernel_buffer_size = safely_wrapped_klogctl(
+        KLogType::SyslogActionSizeBuffer,
+        &mut dummy_buffer,
+    )?;
+
+    let mut real_buffer: Vec<u8> = vec![0; kernel_buffer_size];
+    let bytes_read = safely_wrapped_klogctl(
+        KLogType::SyslogActionReadAll,
+        &mut real_buffer,
+    )?;
+
+    //adjust buffer capacity to what was read
+    real_buffer.resize(bytes_read, 0);
+    let utf8_str = String::from_utf8(real_buffer)?;
+    Ok(utf8_str)
+}
+
 
 /**********************************************************************************/
 // Tests! Tests! Tests!
@@ -78,12 +106,19 @@ mod test {
 
     #[test]
     fn get_kernel_buffer_size() {
-        let mut buf: [i8; 0] = [];
-        let response = safe_klogctl(
+        let mut dummy_buffer: Vec<u8> = vec![0; 0];
+        let response = safely_wrapped_klogctl(
             KLogType::SyslogActionSizeBuffer,
-            buf.as_mut_ptr(),
-            buf.len(),
+            &mut dummy_buffer,
         );
-        println!("Kernel message buffer size: {}", response.unwrap());
+        assert!(response.is_ok(), "Failed to call klogctl");
+        assert!(response.unwrap() > 0, "Buffer size should be greater than zero.");
+    }
+
+    #[test]
+    fn test_rmesg() {
+        let logs = rmesg();
+        assert!(logs.is_ok(), "Failed to call rmesg");
+        assert!(logs.unwrap().len() > 0, "Should have non-empty logs");
     }
 }
