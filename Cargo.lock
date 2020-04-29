@@ -107,7 +107,7 @@ checksum = "7a6e920b65c65f10b2ae65c831a81a073a89edd28c7cce89475bff467ab4167a"
 
 [[package]]
 name = "rmesg"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cfg-if",
  "clap",
