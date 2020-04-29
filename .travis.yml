@@ -5,8 +5,8 @@ services:
   - docker
 before_install:
   - docker pull clux/muslrust
-script:
-  - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo test --release
+before_script:
+  # Build static executable before script (the script will build the crate)
   - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo build --release
 deploy:
   - provider: releases
