@@ -31,6 +31,7 @@ pub struct RMesgLinesIterator {
     poll_interval: Duration,
     sleep_interval: Duration, // Just slightly longer than poll interval so the check passes
     last_poll: SystemTime,
+    lastline: Option<String>,
 }
 
 impl std::iter::Iterator for RMesgLinesIterator {
@@ -79,13 +80,41 @@ impl std::iter::Iterator for RMesgLinesIterator {
 }
 
 impl RMesgLinesIterator {
-    fn poll(&mut self) -> Result<(), RMesgError> {
+    fn poll(&mut self) -> Result<usize, RMesgError> {
         let rawlogs = rmesg(self.clear)?;
-        for line in rawlogs.lines() {
-            self.lines.push(line.to_owned());
+
+        // find the last occurrence of last-line in rawlogs (by going in reverse...)
+        let maybe_lastline = self.lastline.as_ref();
+
+        // reverse raw log lines
+        let revlines = rawlogs.lines().rev();
+        // keep going until we find the last lastline
+        let lines_since_lastline_rev_iter = revlines
+            .take_while(|&line| maybe_lastline.is_none() || line != maybe_lastline.unwrap());
+
+        // collect all the lines after the last lastline in reverse...
+        let mut newlines: Vec<&str> = vec![];
+        for revline in lines_since_lastline_rev_iter {
+            newlines.push(revline);
         }
 
-        Ok(())
+        // reverse them so they are now back in the right order
+        newlines.reverse();
+
+        let mut linesadded: usize = 0;
+        let mut new_lastline: &str = "";
+        for newline in newlines {
+            self.lines.push(newline.to_owned());
+            linesadded = linesadded + 1;
+            new_lastline = newline;
+        }
+
+        if linesadded > 0 {
+            self.lastline = Some(new_lastline.to_owned());
+            return Ok(linesadded);
+        }
+
+        Ok(0)
     }
 }
 
@@ -111,5 +140,6 @@ pub fn rmesg_lines_iter(
         // set last poll in the past so it polls the first time
         last_poll,
         clear,
+        lastline: None,
     })
 }
