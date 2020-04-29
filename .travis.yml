@@ -1,0 +1,8 @@
+language: rust
+rust:
+  - stable
+deploy:
+  provider: cargo
+  edge: true
+  on:
+    tags: true

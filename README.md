@@ -1,3 +1,6 @@
+
+[![Build Status](https://travis-ci.org/polyverse/rmesg.svg?branch=master)](https://travis-ci.org/polyverse/rmesg)
+
 # rmesg
 A 'dmesg' implementation in Rust
 
