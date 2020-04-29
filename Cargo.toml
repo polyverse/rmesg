@@ -5,7 +5,7 @@ authors = ["Archis Gore <archis@polyverse.com>"]
 edition = "2018"
 license-file = "LICENSE"
 categories = ["os", "command-line-utilities"]
-keywords = ["dmesg", "/dev/kmsg", "klogctl", "syslog", "printk", 'programmatic', 'kernel', 'log', 'ring', 'buffer']
+keywords = ["dmesg", "kmsg", "klogctl", "syslog", "printk", 'programmatic', 'kernel', 'log', 'ring', 'buffer']
 readme = "README.md"
 repository = "https://github.com/polyverse/rmesg"
 travis-ci = { repository = "polyverse/rmesg", branch = "master" }
