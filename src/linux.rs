@@ -117,7 +117,7 @@ mod test {
 
     #[test]
     fn test_rmesg() {
-        let logs = rmesg();
+        let logs = rmesg(false);
         assert!(logs.is_ok(), "Failed to call rmesg");
         assert!(logs.unwrap().len() > 0, "Should have non-empty logs");
     }
