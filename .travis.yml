@@ -1,8 +1,23 @@
 language: rust
 rust:
   - stable
+services:
+  - docker
+before_install:
+  - docker pull clux/muslrust
+script:
+  - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo test --release
+  - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo build --release
 deploy:
-  provider: cargo
-  edge: true
-  on:
-    tags: true
+  - provider: releases
+    file:
+      - "target/x86_64-unknown-linux-musl/release/rmesg"
+    skip_cleanup: true
+    on:
+      tags: true
+    edge: true
+  - provider: cargo
+    skip_cleanup: true
+    edge: true
+    on:
+      tags: true
