@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use rmesg::{rmesg, rmesg_lines_iter, SUGGESTED_POLL_INTERVAL};
+use rmesg::{kernel_log_timestamps_enabled, rmesg, RMesgLinesIterator, SUGGESTED_POLL_INTERVAL};
 use std::process;
 
 #[derive(Debug)]
@@ -14,14 +14,30 @@ fn main() {
     if !opts.follow {
         println!("{}", rmesg(opts.clear).unwrap())
     } else {
-        let lines = match rmesg_lines_iter(opts.clear, SUGGESTED_POLL_INTERVAL) {
+        let log_timestamps_enabled = match kernel_log_timestamps_enabled() {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("Unable to check whether kernel log timestamps are enabled. Unable to follow/tail logs. Error: {:?}", e);
+                process::exit(1);
+            }
+        };
+
+        // ensure timestamps in logs
+        if !log_timestamps_enabled {
+            eprintln!("WARNING: Timestamps are disabled but tailing/following logs (as you've requested) requires them.");
+            eprintln!("You may see no output (lines without timestamps are ignored).");
+            eprintln!("You can enable timestamps by running the following: ");
+            eprintln!("  echo Y > /sys/module/printk/parameters/time");
+        }
+
+        let lines = match RMesgLinesIterator::with_options(opts.clear, SUGGESTED_POLL_INTERVAL) {
             Ok(l) => l,
             Err(e) => {
                 eprintln!(
                     "Unable to get an iterator over kernel log messages: {:?}",
                     e
                 );
-                process::exit(1)
+                process::exit(1);
             }
         };
         for maybe_line in lines {
@@ -29,7 +45,7 @@ fn main() {
                 Ok(line) => println!("{}", line),
                 Err(e) => {
                     eprintln!("Error when iterating over kernel log messages: {:?}", e);
-                    process::exit(1)
+                    process::exit(1);
                 }
             }
         }

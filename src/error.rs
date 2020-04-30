@@ -1,3 +1,4 @@
+use std::convert::From;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -6,6 +7,7 @@ pub enum RMesgError {
     NotImplementedForThisPlatform,
     IntegerOutOfBound(String),
     Utf8StringConversionError(String),
+    IOError(String),
     InternalError(String),
     UnableToObtainSystemTime,
     UnableToAddDurationToSystemTime,
@@ -22,6 +24,7 @@ impl Display for RMesgError {
                 RMesgError::IntegerOutOfBound(s) => format!("IntegerOutOfBound: {}", s),
                 RMesgError::Utf8StringConversionError(s) =>
                     format!("Utf8StringConversionError: {}", s),
+                RMesgError::IOError(s) => format!("std::io::Error: {}", s),
                 RMesgError::InternalError(s) => format!("InternalError: {}", s),
                 RMesgError::UnableToObtainSystemTime => "Failed to get SystemTime.".to_owned(),
                 RMesgError::UnableToAddDurationToSystemTime =>
@@ -30,8 +33,14 @@ impl Display for RMesgError {
         )
     }
 }
-impl std::convert::From<std::string::FromUtf8Error> for RMesgError {
+impl From<std::string::FromUtf8Error> for RMesgError {
     fn from(err: std::string::FromUtf8Error) -> RMesgError {
         RMesgError::Utf8StringConversionError(format!("{:?}", err))
+    }
+}
+
+impl From<std::io::Error> for RMesgError {
+    fn from(err: std::io::Error) -> RMesgError {
+        RMesgError::IOError(format!("{:?}", err))
     }
 }
