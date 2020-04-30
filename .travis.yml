@@ -2,11 +2,6 @@ jobs:
 - language: rust
   rust:
     - stable
-  deploy:
-    - provider: cargo
-      edge: true
-      on:
-        tags: true
 - language: rust
   rust:
     - stable
