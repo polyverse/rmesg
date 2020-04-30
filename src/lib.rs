@@ -18,9 +18,15 @@ use std::time::{Duration, SystemTime};
 // suggest polling every ten seconds
 pub const SUGGESTED_POLL_INTERVAL: std::time::Duration = Duration::from_secs(10);
 
+#[cfg(target_os = "linux")]
 // Can be removed once upstream libc supports it.
 extern "C" {
     fn klogctl(syslog_type: libc::c_int, buf: *mut libc::c_char, len: libc::c_int) -> libc::c_int;
+}
+
+#[cfg(not(target_os = "linux"))]
+fn klogctl(_syslog_type: libc::c_int, _buf: *mut libc::c_char, _len: libc::c_int) -> libc::c_int {
+    return -1;
 }
 
 // SYSLOG constants
