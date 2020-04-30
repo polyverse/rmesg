@@ -48,7 +48,7 @@ pub enum KLogType {
 
 pub type SignedInt = libc::c_int;
 
-pub const PRINTK_INCLUDE_TIMESTAMP_PARAMETER: &str = "/sys/module/printk/parameters/time";
+pub const SYS_MODULE_PRINTK_PARAMETERS_TIME: &str = "/sys/module/printk/parameters/time";
 
 pub struct RMesgLinesIterator {
     clear: bool,
@@ -192,7 +192,7 @@ pub fn rmesg(clear: bool) -> Result<String, RMesgError> {
 }
 
 pub fn kernel_log_timestamps_enabled() -> Result<bool, RMesgError> {
-    Ok(fs::read_to_string(PRINTK_INCLUDE_TIMESTAMP_PARAMETER)?
+    Ok(fs::read_to_string(SYS_MODULE_PRINTK_PARAMETERS_TIME)?
         .trim()
         .to_uppercase()
         == "Y")
@@ -200,7 +200,7 @@ pub fn kernel_log_timestamps_enabled() -> Result<bool, RMesgError> {
 
 pub fn kernel_log_timestamps_enable(desired: bool) -> Result<(), RMesgError> {
     Ok(fs::write(
-        PRINTK_INCLUDE_TIMESTAMP_PARAMETER,
+        SYS_MODULE_PRINTK_PARAMETERS_TIME,
         match desired {
             true => "Y\n",
             false => "N\n",
