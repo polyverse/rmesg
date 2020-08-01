@@ -1,3 +1,6 @@
+/// rmesg - a rust-based dmesg implementation.
+/// This CLI builds on top of the eponymous crate and provides a command-line utility.
+///
 use clap::{App, Arg};
 use rmesg::{kernel_log_timestamps_enabled, rmesg, RMesgLinesIterator, SUGGESTED_POLL_INTERVAL};
 use std::process;

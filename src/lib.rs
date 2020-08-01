@@ -25,7 +25,7 @@ use std::fs;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
-// suggest polling every ten seconds
+/// suggest polling every ten seconds
 pub const SUGGESTED_POLL_INTERVAL: std::time::Duration = Duration::from_secs(10);
 
 #[cfg(target_os = "linux")]
@@ -34,8 +34,11 @@ extern "C" {
     fn klogctl(syslog_type: libc::c_int, buf: *mut libc::c_char, len: libc::c_int) -> libc::c_int;
 }
 
+/// Mark this as unsafe to be compliant with the Linux/Libc variant
+/// Allows compilation on non-linux platforms which can be useful for
+/// portability of downstream tools without complex conditionals.
 #[cfg(not(target_os = "linux"))]
-fn klogctl(_syslog_type: libc::c_int, _buf: *mut libc::c_char, _len: libc::c_int) -> libc::c_int {
+unsafe fn klogctl(_syslog_type: libc::c_int, _buf: *mut libc::c_char, _len: libc::c_int) -> libc::c_int {
     return -1;
 }
 
@@ -148,6 +151,9 @@ impl RMesgLinesIterator {
     /// If the poll interval is too short, the iterator will eat up resources for no benefit.
     /// If it is too long, then any lines that showed up and were purged between the two polls
     /// will be lost.
+    ///
+    /// This crate exports a constant `SUGGESTED_POLL_INTERVAL` which contains the recommended
+    /// default when in doubt.
     ///
     pub fn with_options(
         clear: bool,
@@ -295,7 +301,7 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
         }
     };
 
-    let response_cint: libc::c_int = { klogctl(klt, buf_i8, buflen) };
+    let response_cint: libc::c_int = unsafe { klogctl(klt, buf_i8, buflen) };
 
     if response_cint < 0 {
         let err = errno();
@@ -323,7 +329,7 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
 
 #[cfg(all(test, target_os = "linux"))]
 mod test {
-    use super::*;
+    use super::{rmesg, RMesgLinesIterator, RMesgError, SUGGESTED_POLL_INTERVAL};
 
     #[test]
     fn get_kernel_buffer_size() {
@@ -349,7 +355,7 @@ mod test {
         assert!(enable_timestamp_result.is_ok());
 
         // Don't clear the buffer. Poll every second.
-        let iterator_result = RMesgLinesIterator::with_options(false, Duration::from_secs(1));
+        let iterator_result = RMesgLinesIterator::with_options(false, SUGGESTED_POLL_INTERVAL);
         assert!(iterator_result.is_ok());
 
         let iterator = iterator_result.unwrap();
