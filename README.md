@@ -62,7 +62,7 @@ subsequent calls will get repeated lines. In order to read line-by-line without 
 However must useful is being able to read the kernel logs line-by-line:
 
 ```.rust
-    use rmesg::{RMesgLinesIterator, SUGGESTED_POLL_INTERVAL};
+    use rmesg::{kernel_log_timestamps_enable, RMesgLinesIterator, SUGGESTED_POLL_INTERVAL};
 
     // Enable timestamps in kernel log lines if not already enabled - otherwise the iterator will
     // ignore all lines and get stuck.

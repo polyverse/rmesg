@@ -38,7 +38,11 @@ extern "C" {
 /// Allows compilation on non-linux platforms which can be useful for
 /// portability of downstream tools without complex conditionals.
 #[cfg(not(target_os = "linux"))]
-unsafe fn klogctl(_syslog_type: libc::c_int, _buf: *mut libc::c_char, _len: libc::c_int) -> libc::c_int {
+unsafe fn klogctl(
+    _syslog_type: libc::c_int,
+    _buf: *mut libc::c_char,
+    _len: libc::c_int,
+) -> libc::c_int {
     return -1;
 }
 
@@ -329,7 +333,10 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
 
 #[cfg(all(test, target_os = "linux"))]
 mod test {
-    use super::{rmesg, RMesgLinesIterator, RMesgError, SUGGESTED_POLL_INTERVAL};
+    use super::{
+        kernel_log_timestamps_enable, rmesg, safely_wrapped_klogctl, KLogType, RMesgLinesIterator,
+        SUGGESTED_POLL_INTERVAL,
+    };
 
     #[test]
     fn get_kernel_buffer_size() {
