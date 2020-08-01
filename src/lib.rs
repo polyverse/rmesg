@@ -1,3 +1,13 @@
+/// This crate provides a klogctl interface from Rust.
+/// klogctl is a Linux syscall that allows reading the Linux Kernel Log buffer.
+/// https://elinux.org/Debugging_by_printing
+///
+/// This is a crate/library version of the popular Linux utility 'dmesg'
+/// https://en.wikipedia.org/wiki/Dmesg
+///
+/// This allows Rust programs to consume dmesg-like output programmatically.
+///
+
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -50,6 +60,24 @@ pub type SignedInt = libc::c_int;
 
 pub const SYS_MODULE_PRINTK_PARAMETERS_TIME: &str = "/sys/module/printk/parameters/time";
 
+/// While reading the kernel log buffer is very useful in and of itself (expecially when running the CLI),
+/// a lot more value is unlocked when it can be tailed line-by-line.
+///
+/// This struct provides the facilities to do that. It implements an iterator to easily iterate
+/// indefinitely over the lines.
+///
+/// IMPORTANT NOTE: This iterator makes a best-effort attempt at eliminating duplicate lines
+/// so that it can only provide newer lines upon each iteration. The way it accomplishes this is
+/// by using the timestamp field, to track the last-seen timestamp of a line already buffered,
+/// and this only consuming lines past that timestamp on each poll.
+///
+/// The timestamp may not always be set in kernel logs. The iterator will ignore lines without a timestamp.
+/// It is left to the consumers of this struct to ensure the timestamp is set, if they wish for
+/// lines to not be ignored. In order to aid this, two functions are provided in this crate to
+/// check `kernel_log_timestamps_enabled` and to set or unset `kernel_log_timestamps_enable`.
+///
+/// The UX is left to the consumer.
+///
 pub struct RMesgLinesIterator {
     clear: bool,
     lines: Vec<String>,
@@ -59,6 +87,7 @@ pub struct RMesgLinesIterator {
     last_timestamp: f64,
 }
 
+/// Trait to iterate over lines of the kernel log buffer.
 impl std::iter::Iterator for RMesgLinesIterator {
     type Item = Result<String, RMesgError>;
 
@@ -105,6 +134,21 @@ impl std::iter::Iterator for RMesgLinesIterator {
 }
 
 impl RMesgLinesIterator {
+    /// Create a new RMesgLinesIterator with two specific options
+    /// `clear: bool` specifies Whether or not to clear the buffer after every read.
+    /// `poll_interval: Duration` specifies the interval after which to poll the buffer for new lines
+    ///
+    /// Choice of these parameters affects how the iterator behaves significantly.
+    ///
+    /// When `clear` is set, the buffer is cleared after each read. This means other utilities
+    /// on the system that may also be reading the buffer will miss lines/data as it may be
+    /// cleared before they can read it. This is a destructive option provided for completeness.
+    ///
+    /// The poll interval determines how frequently RMesgLinesIterator polls for new content.
+    /// If the poll interval is too short, the iterator will eat up resources for no benefit.
+    /// If it is too long, then any lines that showed up and were purged between the two polls
+    /// will be lost.
+    ///
     pub fn with_options(
         clear: bool,
         poll_interval: Duration,
@@ -131,6 +175,15 @@ impl RMesgLinesIterator {
         })
     }
 
+    /// This method conducts the actual polling of the log buffer.
+    ///
+    /// It tracks the timestamp of the last line buffered, and only adds lines
+    /// that have timestamps greater than that.
+    ///
+    /// Any lines without a timestamp are ignored. It is upto consumers to ensure timestamps
+    /// are set (possibly through the provided function `kernel_log_timestamps_enable`) before
+    /// polling/iterating.
+    ///
     fn poll(&mut self) -> Result<usize, RMesgError> {
         let rawlogs = rmesg(self.clear)?;
 
@@ -150,6 +203,8 @@ impl RMesgLinesIterator {
         return Ok(linesadded);
     }
 
+    /// Extracts a timestamp in the log line (if one exists) and returns
+    /// it or None.
     fn extract_timestamp(line: &str) -> Option<(f64, &str)> {
         lazy_static! {
             static ref RE_RMESG_WITH_TIMESTAMP: Regex = Regex::new(
@@ -170,6 +225,10 @@ impl RMesgLinesIterator {
     }
 }
 
+/// This is the key safe function that makes the klogctl syslog call with parameters.
+/// While the internally used function supports all klogctl parameters, this function
+/// only provides one bool parameter which indicates whether the buffer is to be cleared
+/// or not, after its contents have been read.
 pub fn rmesg(clear: bool) -> Result<String, RMesgError> {
     let mut dummy_buffer: Vec<u8> = vec![0; 0];
     let kernel_buffer_size =
@@ -191,6 +250,7 @@ pub fn rmesg(clear: bool) -> Result<String, RMesgError> {
     Ok(utf8_str)
 }
 
+/// This function checks whether or not timestamps are enabled in the Linux Kernel log entries.
 pub fn kernel_log_timestamps_enabled() -> Result<bool, RMesgError> {
     Ok(fs::read_to_string(SYS_MODULE_PRINTK_PARAMETERS_TIME)?
         .trim()
@@ -198,6 +258,7 @@ pub fn kernel_log_timestamps_enabled() -> Result<bool, RMesgError> {
         == "Y")
 }
 
+/// This function can enable or disable whether or not timestamps are enabled in the Linux Kernel log entries.
 pub fn kernel_log_timestamps_enable(desired: bool) -> Result<(), RMesgError> {
     Ok(fs::write(
         SYS_MODULE_PRINTK_PARAMETERS_TIME,
@@ -210,9 +271,9 @@ pub fn kernel_log_timestamps_enable(desired: bool) -> Result<(), RMesgError> {
 
 // ************************** Private
 
-/*
-    Safely wraps the klogctl for Rusty types
-*/
+/// Safely wraps the klogctl for Rusty types
+/// All higher-level functions are built over this function at the base.
+/// It prevents unsafe code from proliferating beyond this wrapper.
 pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<usize, RMesgError> {
     // convert klogtype
     let klt = klogtype.clone() as libc::c_int;
@@ -234,7 +295,7 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
         }
     };
 
-    let response_cint: libc::c_int = unsafe { klogctl(klt, buf_i8, buflen) };
+    let response_cint: libc::c_int = { klogctl(klt, buf_i8, buflen) };
 
     if response_cint < 0 {
         let err = errno();
@@ -260,7 +321,7 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
 /**********************************************************************************/
 // Tests! Tests! Tests!
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod test {
     use super::*;
 
@@ -280,5 +341,27 @@ mod test {
         let logs = rmesg(false);
         assert!(logs.is_ok(), "Failed to call rmesg");
         assert!(logs.unwrap().len() > 0, "Should have non-empty logs");
+    }
+
+    #[test]
+    fn test_iterator() {
+        let enable_timestamp_result = kernel_log_timestamps_enable(true);
+        assert!(enable_timestamp_result.is_ok());
+
+        // Don't clear the buffer. Poll every second.
+        let iterator_result = RMesgLinesIterator::with_options(false, Duration::from_secs(1));
+        assert!(iterator_result.is_ok());
+
+        let iterator = iterator_result.unwrap();
+
+        // Read 10 lines and quit
+        let mut count: u32 = 0;
+        for line in iterator {
+            assert!(line.is_ok());
+            count = count + 1;
+            if count > 10 {
+                break;
+            }
+        }
     }
 }
