@@ -358,8 +358,9 @@ mod test {
 
     #[test]
     fn test_iterator() {
-        let enable_timestamp_result = kernel_log_timestamps_enable(true);
-        assert!(enable_timestamp_result.is_ok());
+        // uncomment below if you want to be extra-sure
+        //let enable_timestamp_result = kernel_log_timestamps_enable(true);
+        //assert!(enable_timestamp_result.is_ok());
 
         // Don't clear the buffer. Poll every second.
         let iterator_result = RMesgLinesIterator::with_options(false, SUGGESTED_POLL_INTERVAL);
