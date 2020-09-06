@@ -17,6 +17,7 @@ pub mod error;
 
 use errno::errno;
 use error::RMesgError;
+use libc;
 use regex::Regex;
 use std::convert::TryFrom;
 use std::fmt::Display;
@@ -42,7 +43,7 @@ unsafe fn klogctl(
     _buf: *mut libc::c_char,
     _len: libc::c_int,
 ) -> libc::c_int {
-    -1
+    return -1;
 }
 
 // SYSLOG constants
@@ -126,7 +127,7 @@ impl std::iter::Iterator for RMesgLinesIterator {
                 }
             }
 
-            if self.lines.is_empty() {
+            if self.lines.len() == 0 {
                 // sleep for poll duration, then loop
                 sleep(self.sleep_interval);
 
@@ -205,11 +206,11 @@ impl RMesgLinesIterator {
         let mut linesadded: usize = 0;
         for (timestamp, newline) in newer_lines {
             self.lines.push(newline.to_owned());
-            linesadded += 1;
+            linesadded = linesadded + 1;
             self.last_timestamp = timestamp;
         }
 
-        Ok(linesadded)
+        return Ok(linesadded);
     }
 
     /// Extracts a timestamp in the log line (if one exists) and returns
@@ -324,7 +325,7 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
         }
     };
 
-    Ok(response)
+    return Ok(response);
 }
 
 /**********************************************************************************/
