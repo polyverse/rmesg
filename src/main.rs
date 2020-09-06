@@ -74,15 +74,8 @@ fn parse_args() -> Options {
         )
         .get_matches();
 
-    let follow = match matches.occurrences_of("follow") {
-        0 => false,
-        _ => true,
-    };
-
-    let clear = match matches.occurrences_of("clear") {
-        0 => false,
-        _ => true,
-    };
+    let follow = !matches!(matches.occurrences_of("follow"), 0);
+    let clear = !matches!(matches.occurrences_of("clear"), 0);
 
     Options { follow, clear }
 }
