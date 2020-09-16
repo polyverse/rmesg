@@ -6,6 +6,14 @@ A 'dmesg' implementation in Rust
 
 ## As a command-line utility
 
+### Cargo Install
+
+```.bash
+cargo install rmesg
+```
+
+### Usage
+
 ```.bash
 rmesg --help
 rmest: A 'dmesg' port onto Rust 0.2.0
