@@ -2,12 +2,11 @@
 /// This CLI builds on top of the eponymous crate and provides a command-line utility.
 ///
 use clap::{App, Arg};
+use std::error::Error;
+
 #[cfg(feature = "async")]
 use futures_util::stream::TryStreamExt;
 
-use rmesg::error::RMesgError;
-use rmesg::klogctl::{klog_timestamps_enabled, KLogEntries, SUGGESTED_POLL_INTERVAL};
-use std::error::Error;
 
 #[derive(Debug)]
 struct Options {
@@ -53,19 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if !opts.follow {
         nofollow(opts);
     } else {
-        let log_timestamps_enabled = klog_timestamps_enabled()?;
-
-        // ensure timestamps in logs
-        if !log_timestamps_enabled {
-            eprintln!("WARNING: Timestamps are disabled but tailing/following logs (as you've requested) requires them.");
-            eprintln!("Aboring program.");
-            eprintln!("You can enable timestamps by running the following: ");
-            eprintln!("  echo Y > /sys/module/printk/parameters/time");
-            return Err(RMesgError::KLogTimestampsDisabled.into());
-        }
-
-        let entries = KLogEntries::with_options(opts.clear, SUGGESTED_POLL_INTERVAL)?;
-
+        let entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw)?;
         for maybe_entry in entries {
             let entry = maybe_entry?;
             println!("{}", entry);

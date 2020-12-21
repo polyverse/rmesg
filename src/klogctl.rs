@@ -381,23 +381,19 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
             (None, None, None, line.to_owned())
         };
 
+    let entry = EntryStruct{
+        facility,
+        level,
+        sequence_num: None,
+        timestamp_from_system_start,
+        message,
+    };
+
     cfg_if::cfg_if! {
         if #[cfg(feature="ptr")] {
-            Ok(Box::new(EntryStruct{
-                facility,
-                level,
-                sequence_num: None,
-                timestamp_from_system_start,
-                message,
-            }))
+            Ok(Box::new(entry))
         } else {
-            Ok(EntryStruct {
-                facility,
-                level,
-                sequence_num: None,
-                timestamp_from_system_start,
-                message,
-            })
+            Ok(entry)
         }
     }
 }
