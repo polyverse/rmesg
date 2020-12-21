@@ -16,7 +16,13 @@ pub mod klogctl;
 /// KMsg Implementation (reads from the /dev/kmsg file)
 pub mod kmsgfile;
 
+#[cfg(not(feature = "async"))]
 use std::iter::Iterator;
+
+#[cfg(feature = "async")]
+use core::pin::Pin;
+#[cfg(feature = "async")]
+use futures::stream::Stream;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Backend {
@@ -25,7 +31,11 @@ pub enum Backend {
     DevKMsg,
 }
 
+#[cfg(not(feature = "async"))]
 type EntriesIterator = Box<dyn Iterator<Item = Result<entry::Entry, error::RMesgError>>>;
+
+#[cfg(feature = "async")]
+type EntriesStream = Pin<Box<dyn Stream<Item = Result<entry::Entry, error::RMesgError>>>>;
 
 pub fn log_entries(b: Backend, clear: bool) -> Result<Vec<entry::Entry>, error::RMesgError> {
     match b {
@@ -63,6 +73,7 @@ pub fn logs_raw(b: Backend, clear: bool) -> Result<String, error::RMesgError> {
     }
 }
 
+#[cfg(not(feature = "async"))]
 pub fn logs_iter(b: Backend, clear: bool, raw: bool) -> Result<EntriesIterator, error::RMesgError> {
     match b {
         Backend::Default => match kmsgfile::KMsgEntries::with_options(None, raw) {
@@ -72,16 +83,43 @@ pub fn logs_iter(b: Backend, clear: bool, raw: bool) -> Result<EntriesIterator, 
                     "Falling back from device file to klogctl syscall due to error: {}",
                     s
                 );
-                klog_entries_only_if_timestamp_enabled(clear)
+                Ok(Box::new(klog_entries_only_if_timestamp_enabled(clear)?))
             }
             Err(e) => Err(e),
         },
-        Backend::KLogCtl => klog_entries_only_if_timestamp_enabled(clear),
+        Backend::KLogCtl => Ok(Box::new(klog_entries_only_if_timestamp_enabled(clear)?)),
         Backend::DevKMsg => Ok(Box::new(kmsgfile::KMsgEntries::with_options(None, raw)?)),
     }
 }
 
-fn klog_entries_only_if_timestamp_enabled(clear: bool) -> Result<EntriesIterator, error::RMesgError> {
+#[cfg(feature = "async")]
+pub async fn logs_iter(
+    b: Backend,
+    clear: bool,
+    raw: bool,
+) -> Result<EntriesStream, error::RMesgError> {
+    match b {
+        Backend::Default => match kmsgfile::KMsgEntries::with_options(None, raw).await {
+            Ok(e) => Ok(Box::pin(e)),
+            Err(error::RMesgError::DevKMsgFileOpenError(s)) => {
+                eprintln!(
+                    "Falling back from device file to klogctl syscall due to error: {}",
+                    s
+                );
+                Ok(Box::pin(klog_entries_only_if_timestamp_enabled(clear)?))
+            }
+            Err(e) => Err(e),
+        },
+        Backend::KLogCtl => Ok(Box::pin(klog_entries_only_if_timestamp_enabled(clear)?)),
+        Backend::DevKMsg => Ok(Box::pin(
+            kmsgfile::KMsgEntries::with_options(None, raw).await?,
+        )),
+    }
+}
+
+fn klog_entries_only_if_timestamp_enabled(
+    clear: bool,
+) -> Result<klogctl::KLogEntries, error::RMesgError> {
     let log_timestamps_enabled = klogctl::klog_timestamps_enabled()?;
 
     // ensure timestamps in logs
@@ -93,5 +131,5 @@ fn klog_entries_only_if_timestamp_enabled(clear: bool) -> Result<EntriesIterator
         return Err(error::RMesgError::KLogTimestampsDisabled);
     }
 
-    Ok(Box::new(klogctl::KLogEntries::with_options(clear, klogctl::SUGGESTED_POLL_INTERVAL)?))
+    klogctl::KLogEntries::with_options(clear, klogctl::SUGGESTED_POLL_INTERVAL)
 }

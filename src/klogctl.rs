@@ -381,7 +381,7 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
             (None, None, None, line.to_owned())
         };
 
-    let entry = EntryStruct{
+    let entry = EntryStruct {
         facility,
         level,
         sequence_num: None,
@@ -454,6 +454,9 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
 mod test {
     use super::*;
 
+    #[cfg(feature = "async")]
+    use futures::StreamExt;
+
     #[test]
     fn get_kernel_buffer_size() {
         let mut dummy_buffer: Vec<u8> = vec![0; 0];
@@ -502,14 +505,14 @@ mod test {
         //assert!(enable_timestamp_result.is_ok());
 
         // Don't clear the buffer. Poll every second.
-        let iterator_result = KLogEntries::with_options(false, SUGGESTED_POLL_INTERVAL);
-        assert!(iterator_result.is_ok());
+        let stream_result = KLogEntries::with_options(false, SUGGESTED_POLL_INTERVAL);
+        assert!(stream_result.is_ok());
 
-        let iterator = iterator_result.unwrap();
+        let mut stream = stream_result.unwrap();
 
         // Read 10 lines and quit
         let mut count: u32 = 0;
-        while let Some(entry) = iterator.next().await? {
+        while let Some(entry) = tokio_test::block_on(stream.next()) {
             assert!(entry.is_ok());
             count = count + 1;
             if count > 10 {

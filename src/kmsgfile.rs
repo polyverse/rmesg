@@ -13,11 +13,23 @@ use crate::error::RMesgError;
 
 use nonblock::NonBlockingReader;
 use regex::Regex;
-use std::fs;
-use std::io::{BufReader, Lines, BufRead};
+use std::fs as stdfs;
 
-#[cfg(not(feature="async"))]
+#[cfg(not(feature = "async"))]
+use std::io::{BufRead, BufReader, Lines};
+#[cfg(not(feature = "async"))]
 use std::iter::Iterator;
+
+#[cfg(feature = "async")]
+use core::pin::Pin;
+#[cfg(feature = "async")]
+use futures::stream::Stream;
+#[cfg(feature = "async")]
+use futures::task::{Context, Poll};
+#[cfg(feature = "async")]
+use tokio::fs as tokiofs;
+#[cfg(feature = "async")]
+use tokio::io::{AsyncBufReadExt, BufReader, Lines};
 
 const DEV_KMSG_PATH: &str = "/dev/kmsg";
 
@@ -27,46 +39,28 @@ const DEV_KMSG_PATH: &str = "/dev/kmsg";
 /// This struct provides the facilities to do that. It implements an iterator to easily iterate
 /// indefinitely over the lines.
 ///
-/// IMPORTANT NOTE: This iterator makes a best-effort attempt at eliminating duplicate lines
-/// so that it can only provide newer lines upon each iteration. The way it accomplishes this is
-/// by using the timestamp field, to track the last-seen timestamp of a line already buffered,
-/// and this only consuming lines past that timestamp on each poll.
-///
-/// The timestamp may not always be set in kernel logs. The iterator will ignore lines without a timestamp.
-/// It is left to the consumers of this struct to ensure the timestamp is set, if they wish for
-/// lines to not be ignored. In order to aid this, two functions are provided in this crate to
-/// check `kernel_log_timestamps_enabled` and to set or unset `kernel_log_timestamps_enable`.
-///
-/// The UX is left to the consumer.
-///
 pub struct KMsgEntries {
     raw: bool,
-    lines: Lines<BufReader<fs::File>>,
+
+    #[cfg(not(feature = "async"))]
+    lines: Lines<BufReader<stdfs::File>>,
+
+    #[cfg(feature = "async")]
+    lines: Pin<Box<Lines<BufReader<tokiofs::File>>>>,
 }
 
 impl KMsgEntries {
     /// Create a new KMsgEntries with two specific options
-    /// `clear: bool` specifies Whether or not to clear the buffer after every read.
-    /// `poll_interval: Duration` specifies the interval after which to poll the buffer for new lines
-    ///
-    /// Choice of these parameters affects how the iterator behaves significantly.
-    ///
-    /// When `clear` is set, the buffer is cleared after each read. This means other utilities
-    /// on the system that may also be reading the buffer will miss lines/data as it may be
-    /// cleared before they can read it. This is a destructive option provided for completeness.
-    ///
-    /// The poll interval determines how frequently KMsgEntries polls for new content.
-    /// If the poll interval is too short, the iterator will eat up resources for no benefit.
-    /// If it is too long, then any lines that showed up and were purged between the two polls
-    /// will be lost.
-    ///
-    /// This crate exports a constant `SUGGESTED_POLL_INTERVAL` which contains the recommended
-    /// default when in doubt.
-    ///
-    pub fn with_options(file_override: Option<String>, raw: bool) -> Result<KMsgEntries, RMesgError> {
+    /// `file_override`: When `Some`, overrides the path from where to read the kernel logs
+    /// `raw: bool` When set, does not parse the message and instead sets the entire log entry in the "message" field
+    #[cfg(not(feature = "async"))]
+    pub fn with_options(
+        file_override: Option<String>,
+        raw: bool,
+    ) -> Result<KMsgEntries, RMesgError> {
         let path = file_override.unwrap_or_else(|| DEV_KMSG_PATH.to_owned());
 
-        let file = match fs::File::open(path.clone()) {
+        let file = match stdfs::File::open(path.clone()) {
             Ok(fc) => fc,
             Err(e) => {
                 return Err(RMesgError::DevKMsgFileOpenError(format!(
@@ -78,10 +72,29 @@ impl KMsgEntries {
 
         let lines = BufReader::new(file).lines();
 
-        Ok(KMsgEntries {
-            raw,
-            lines,
-        })
+        Ok(KMsgEntries { raw, lines })
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn with_options(
+        file_override: Option<String>,
+        raw: bool,
+    ) -> Result<KMsgEntries, RMesgError> {
+        let path = file_override.unwrap_or_else(|| DEV_KMSG_PATH.to_owned());
+
+        let file = match tokiofs::File::open(path.clone()).await {
+            Ok(fc) => fc,
+            Err(e) => {
+                return Err(RMesgError::DevKMsgFileOpenError(format!(
+                    "Unable to open file {}: {}",
+                    path, e
+                )))
+            }
+        };
+
+        let lines = Box::pin(BufReader::new(file).lines());
+
+        Ok(KMsgEntries { raw, lines })
     }
 }
 
@@ -96,10 +109,13 @@ impl Iterator for KMsgEntries {
     fn next(&mut self) -> Option<Self::Item> {
         match self.lines.next() {
             None => None,
-            Some(Err(e)) => Some(Err(RMesgError::IOError(format!("Error reading next line from kernel log device file: {}", e)))),
+            Some(Err(e)) => Some(Err(RMesgError::IOError(format!(
+                "Error reading next line from kernel log device file: {}",
+                e
+            )))),
             Some(Ok(line)) => {
                 if self.raw {
-                    let entry = EntryStruct{
+                    let entry = EntryStruct {
                         facility: None,
                         level: None,
                         timestamp_from_system_start: None,
@@ -117,7 +133,7 @@ impl Iterator for KMsgEntries {
                 } else {
                     Some(entry_from_line(&line).map_err(|e| e.into()))
                 }
-            },
+            }
         }
     }
 }
@@ -126,50 +142,43 @@ impl Iterator for KMsgEntries {
 #[cfg(feature = "async")]
 impl Stream for KMsgEntries {
     type Item = Result<Entry, RMesgError>;
+
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(mut sf) = self.sleep_future.take() {
-            match Future::poll(Pin::new(&mut sf), cx) {
-                // still sleeping? Go back to sleep.
-                Poll::Pending => {
-                    // put the future back in
-                    self.sleep_future = Some(sf);
-                    return Poll::Pending;
-                }
+        match self.lines.as_mut().poll_next(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e.into()))),
+            Poll::Ready(Some(Ok(line))) => {
+                let value = if self.raw {
+                    let entry = EntryStruct {
+                        facility: None,
+                        level: None,
+                        timestamp_from_system_start: None,
+                        sequence_num: None,
+                        message: line,
+                    };
 
-                // Not sleeping?
-                Poll::Ready(()) => {}
+                    cfg_if::cfg_if! {
+                        if #[cfg(feature="ptr")] {
+                            Some(Ok(Box::new(entry)))
+                        } else {
+                            Some(Ok(entry))
+                        }
+                    }
+                } else {
+                    Some(entry_from_line(&line).map_err(|e| e.into()))
+                };
+
+                Poll::Ready(value)
             }
         }
-
-        // entries empty?
-        while self.entries.is_empty() {
-            let elapsed = match self.last_poll.elapsed() {
-                Ok(duration) => duration,
-                Err(e) => return Poll::Ready(Some(Err(RMesgError::UnableToObtainElapsedTime(e)))),
-            };
-
-            // Did enough time pass since last poll? If so try to poll
-            if elapsed >= self.poll_interval {
-                if let Err(e) = self.poll() {
-                    return Poll::Ready(Some(Err(e)));
-                }
-            } else {
-                let mut sf = sleep(self.sleep_interval);
-                if let Poll::Pending = Future::poll(Pin::new(&mut sf), cx) {
-                    self.sleep_future = Some(sf);
-                    return Poll::Pending;
-                }
-            }
-        }
-
-        Poll::Ready(Some(Ok(self.entries.remove(0))))
     }
 }
 
 pub fn kmsg_raw(file_override: Option<String>) -> Result<String, RMesgError> {
     let path = file_override.unwrap_or_else(|| DEV_KMSG_PATH.to_owned());
 
-    let file = match fs::File::open(path.clone()) {
+    let file = match stdfs::File::open(path.clone()) {
         Ok(fc) => fc,
         Err(e) => {
             return Err(RMesgError::DevKMsgFileOpenError(format!(
@@ -276,21 +285,21 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
             (None, None, None, None, line.to_owned())
         };
 
-        let entry = EntryStruct{
-            facility,
-            level,
-            sequence_num,
-            timestamp_from_system_start,
-            message,
-        };
+    let entry = EntryStruct {
+        facility,
+        level,
+        sequence_num,
+        timestamp_from_system_start,
+        message,
+    };
 
-        cfg_if::cfg_if! {
-            if #[cfg(feature="ptr")] {
-                Ok(Box::new(entry))
-            } else {
-                Ok(entry)
-            }
+    cfg_if::cfg_if! {
+        if #[cfg(feature="ptr")] {
+            Ok(Box::new(entry))
+        } else {
+            Ok(entry)
         }
+    }
 }
 
 /**********************************************************************************/
@@ -300,11 +309,60 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
 mod test {
     use super::*;
 
+    #[cfg(feature = "async")]
+    use futures::StreamExt;
+
     #[test]
     fn test_kmsg() {
         let entries = kmsg(None);
         assert!(entries.is_ok(), "Failed to call rmesg");
         assert!(!entries.unwrap().is_empty(), "Should have non-empty logs");
+    }
+
+    #[cfg(not(feature = "async"))]
+    #[test]
+    fn test_iterator() {
+        // uncomment below if you want to be extra-sure
+        //let enable_timestamp_result = kernel_log_timestamps_enable(true);
+        //assert!(enable_timestamp_result.is_ok());
+
+        // Don't clear the buffer. Poll every second.
+        let iterator_result = KMsgEntries::with_options(None, false);
+        assert!(iterator_result.is_ok());
+
+        let iterator = iterator_result.unwrap();
+
+        // Read 10 lines and quit
+        for (count, entry) in iterator.enumerate() {
+            assert!(entry.is_ok());
+            if count > 10 {
+                break;
+            }
+        }
+    }
+
+    #[cfg(feature = "async")]
+    #[test]
+    fn test_stream() {
+        // uncomment below if you want to be extra-sure
+        //let enable_timestamp_result = kernel_log_timestamps_enable(true);
+        //assert!(enable_timestamp_result.is_ok());
+
+        // Don't clear the buffer. Poll every second.
+        let stream_result = tokio_test::block_on(KMsgEntries::with_options(None, false));
+        assert!(stream_result.is_ok());
+
+        let mut stream = stream_result.unwrap();
+
+        // Read 10 lines and quit
+        let mut count: u32 = 0;
+        while let Some(entry) = tokio_test::block_on(stream.next()) {
+            assert!(entry.is_ok());
+            count = count + 1;
+            if count > 10 {
+                break;
+            }
+        }
     }
 
     #[test]

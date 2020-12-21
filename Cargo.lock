@@ -42,6 +42,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
+name = "bytes"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
+
+[[package]]
+name = "bytes"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0dcbc35f504eb6fc275a6d20e4ebcda18cf50d40ba6fabff8c711fa16cb3b16"
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -472,6 +484,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tokio",
+ "tokio-test",
 ]
 
 [[package]]
@@ -633,6 +646,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "720ba21c25078711bf456d607987d95bce90f7c3bea5abe1db587862e7a1e87c"
 dependencies = [
  "autocfg",
+ "bytes 0.6.0",
+ "futures-core",
+ "memchr",
  "num_cpus",
  "pin-project-lite",
  "slab",
@@ -648,6 +664,17 @@ dependencies = [
  "proc-macro2",
  "quote 1.0.7",
  "syn 1.0.54",
+]
+
+[[package]]
+name = "tokio-test"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7edc5a2b13a713b9134debc9aa1265b0a1ccf6a81fa05af2ba26e4aee56cdf1a"
+dependencies = [
+ "bytes 0.5.6",
+ "futures-core",
+ "tokio",
 ]
 
 [[package]]

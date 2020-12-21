@@ -7,7 +7,6 @@ use std::error::Error;
 #[cfg(feature = "async")]
 use futures_util::stream::TryStreamExt;
 
-
 #[derive(Debug)]
 struct Options {
     follow: bool,
@@ -24,18 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if !opts.follow {
         nofollow(opts);
     } else {
-        let log_timestamps_enabled = klog_timestamps_enabled()?;
-
-        // ensure timestamps in logs
-        if !log_timestamps_enabled {
-            eprintln!("WARNING: Timestamps are disabled but tailing/following logs (as you've requested) requires them.");
-            eprintln!("Aboring program.");
-            eprintln!("You can enable timestamps by running the following: ");
-            eprintln!("  echo Y > /sys/module/printk/parameters/time");
-            return Err(RMesgError::KLogTimestampsDisabled.into());
-        }
-
-        let mut entries = KLogEntries::with_options(opts.clear, SUGGESTED_POLL_INTERVAL)?;
+        let mut entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw).await?;
 
         while let Some(entry) = entries.try_next().await? {
             println!("{}", entry);
