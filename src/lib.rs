@@ -19,11 +19,11 @@ pub mod kmsgfile;
 #[derive(Clone, Copy, Debug)]
 pub enum Backend {
     Default,
-    KLog,
-    KMsg,
+    KLogCtl,
+    DevKMsg,
 }
 
-pub fn entries(b: Backend, clear: bool) -> Result<Vec<entry::Entry>, error::RMesgError> {
+pub fn log_entries(b: Backend, clear: bool) -> Result<Vec<entry::Entry>, error::RMesgError> {
     match b {
         Backend::Default => match kmsgfile::kmsg(None) {
             Ok(e) => Ok(e),
@@ -36,7 +36,25 @@ pub fn entries(b: Backend, clear: bool) -> Result<Vec<entry::Entry>, error::RMes
             }
             Err(e) => Err(e),
         },
-        Backend::KLog => klogctl::klog(clear),
-        Backend::KMsg => kmsgfile::kmsg(None),
+        Backend::KLogCtl => klogctl::klog(clear),
+        Backend::DevKMsg => kmsgfile::kmsg(None),
+    }
+}
+
+pub fn logs_raw(b: Backend, clear: bool) -> Result<String, error::RMesgError> {
+    match b {
+        Backend::Default => match kmsgfile::kmsg_raw(None) {
+            Ok(e) => Ok(e),
+            Err(error::RMesgError::DevKMsgFileOpenError(s)) => {
+                eprintln!(
+                    "Falling back from device file to klogctl syscall due to error: {}",
+                    s
+                );
+                klogctl::klog_raw(clear)
+            }
+            Err(e) => Err(e),
+        },
+        Backend::KLogCtl => klogctl::klog_raw(clear),
+        Backend::DevKMsg => kmsgfile::kmsg_raw(None),
     }
 }

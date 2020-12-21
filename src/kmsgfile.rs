@@ -19,20 +19,6 @@ use std::time::Duration;
 /// suggest polling every ten seconds
 pub const SUGGESTED_POLL_INTERVAL: std::time::Duration = Duration::from_secs(10);
 
-#[cfg(feature = "async")]
-use core::future::Future;
-#[cfg(feature = "async")]
-use core::pin::Pin;
-#[cfg(feature = "async")]
-use futures::stream::Stream;
-#[cfg(feature = "async")]
-use futures::task::{Context, Poll};
-#[cfg(feature = "async")]
-use tokio::time::{sleep, Sleep};
-
-#[cfg(not(feature = "async"))]
-use std::iter::Iterator;
-
 const DEV_KMSG_PATH: &str = "/dev/kmsg";
 
 pub fn kmsg_raw(file_override: Option<String>) -> Result<String, RMesgError> {
@@ -99,7 +85,7 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
             [[:space:]]*(?P<faclevstr>[[:digit:]]*)[[:space:]]*,
             # Sequence is a 64-bit integer: https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
             [[:space:]]*(?P<sequencenum>[[:digit:]]*)[[:space:]]*,
-            [[:space:]]*(?P<timestamp>[[:digit:]]*)[[:space:]]*,
+            [[:space:]]*(?P<timestampstr>[[:digit:]]*)[[:space:]]*,
             # Ignore everything until the semi-colon and then the semicolon
             [[^;]]*;
             (?P<message>.*)$"
@@ -150,6 +136,7 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
             Ok(Box::new(EntryStruct{
                 facility,
                 level,
+                sequence_num,
                 timestamp_from_system_start,
                 message,
             }))
@@ -187,7 +174,7 @@ mod test {
         let line1again = e1r.unwrap().to_kmsg_str();
         assert_eq!(line1, line1again);
 
-        let line2 = "6,1,0,-;Command, line: BOOT_IMAGE=/boot/kernel console=ttyS0 console=ttyS1 page_poison=1 vsyscall=emulate panic=1 root=/dev/sr0 text";
+        let line2 = "6,779,91650777797,-;docker0: port 2(veth98d5024) entered disabled state";
         let e2r = entry_from_line(line2);
         assert!(e2r.is_ok());
         let line2again = e2r.unwrap().to_kmsg_str();

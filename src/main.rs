@@ -13,6 +13,7 @@ use std::error::Error;
 struct Options {
     follow: bool,
     clear: bool,
+    raw: bool,
     backend: rmesg::Backend,
 }
 
@@ -22,10 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let opts = parse_args();
 
     if !opts.follow {
-        let entries = rmesg::entries(opts.backend, opts.clear).unwrap();
-        for entry in entries {
-            println!("{}", entry)
-        }
+        nofollow(opts);
     } else {
         let log_timestamps_enabled = klog_timestamps_enabled()?;
 
@@ -53,10 +51,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let opts = parse_args();
 
     if !opts.follow {
-        let entries = rmesg::entries(opts.backend, opts.clear).unwrap();
-        for entry in entries {
-            println!("{}", entry)
-        }
+        nofollow(opts);
     } else {
         let log_timestamps_enabled = klog_timestamps_enabled()?;
 
@@ -80,6 +75,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn nofollow(opts: Options) {
+    if opts.raw {
+        let raw = rmesg::logs_raw(opts.backend, opts.clear).unwrap();
+        print!("{}", raw)
+    } else {
+        let entries = rmesg::log_entries(opts.backend, opts.clear).unwrap();
+        for entry in entries {
+            println!("{}", entry)
+        }
+    }
+}
+
 fn parse_args() -> Options {
     let matches = App::new("rmest: A 'dmesg' port onto Rust")
         .version("0.2.0")
@@ -98,26 +105,33 @@ fn parse_args() -> Options {
                 .help("Clear ring buffer after printing"),
         )
         .arg(
+            Arg::with_name("raw")
+                .short("r")
+                .help("Print raw data as it came from the source backend."),
+        )
+        .arg(
             Arg::with_name("backend")
                 .short("b")
                 .takes_value(true)
-                .possible_values(&["klog", "kmsg"])
+                .possible_values(&["klogctl", "devkmsg"])
                 .help("Select backend from where to read the logs. klog is the syslog/klogctl system call through libc. kmsg is the /dev/kmsg file."),
         )
         .get_matches();
 
     let follow = !matches!(matches.occurrences_of("follow"), 0);
     let clear = !matches!(matches.occurrences_of("clear"), 0);
+    let raw = !matches!(matches.occurrences_of("raw"), 0);
     let backend = match matches.value_of("backend") {
         None => rmesg::Backend::Default,
-        Some("klog") => rmesg::Backend::KLog,
-        Some("kmsg") => rmesg::Backend::KMsg,
+        Some("klogctl") => rmesg::Backend::KLogCtl,
+        Some("devkmsg") => rmesg::Backend::DevKMsg,
         Some(v) => panic!("Something went wrong. Possible values for backend were not restricted by the CLI parser and this value slipped through somehow: {}", v),
     };
 
     Options {
         follow,
         clear,
+        raw,
         backend,
     }
 }

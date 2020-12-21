@@ -384,7 +384,7 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
     cfg_if::cfg_if! {
         if #[cfg(feature="ptr")] {
             Ok(Box::new(EntryStruct{
-                facility:,
+                facility,
                 level,
                 sequence_num: None,
                 timestamp_from_system_start,

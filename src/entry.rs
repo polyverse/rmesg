@@ -55,7 +55,7 @@ impl EntryStruct {
         let maybe_faclev = self.to_faclev();
 
         let timestampstr = match self.timestamp_from_system_start {
-            Some(ts) => format!("[{: >16}]", ts.as_secs_f64()),
+            Some(ts) => format!("[{: >16.6}]", ts.as_secs_f64()),
             None => "".to_owned(),
         };
 
@@ -97,7 +97,7 @@ impl EntryStruct {
 impl Display for EntryStruct {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         let timestampstr = match self.timestamp_from_system_start {
-            Some(ts) => format!("[{: >16}]", ts.as_secs_f64()),
+            Some(ts) => format!("[{: >16.6}]", ts.as_secs_f64()),
             None => "".to_owned(),
         };
 
