@@ -15,29 +15,31 @@ cargo install rmesg
 ### Usage
 
 ```.bash
-rmesg --help
-rmest: A 'dmesg' port onto Rust 0.2.0
+rmest: A 'dmesg' port onto Rust 1.0.0
 Archis Gore <archis@polyverse.com>
 Reads (and prints) the kernel log buffer. Does not support all dmesg options (yet).
 
 USAGE:
-    rmesg [FLAGS]
+    rmesg [FLAGS] [OPTIONS]
 
 FLAGS:
     -c               Clear ring buffer after printing (only when using klogctl)
     -f               When specified, follows logs (like tail -f)
     -h, --help       Prints help information
+    -r               Print raw data as it came from the source backend.
     -V, --version    Prints version information
+
+OPTIONS:
+    -b <backend>        Select backend from where to read the logs. klog is the syslog/klogctl system call through libc.
+                        kmsg is the /dev/kmsg file. [possible values: klogctl, devkmsg]
 ```
 
 ## As a Crate
 
-This mainly serves as a crate, but if compiled, will become a
-simple executable that will dump kernel log buffer contents onto
-the console.
+The real value of this crate is  programmatic access to kernel buffer from Rust
+programs, allowing a `dmesg` that can be consumed programmatically.
 
-The value of this is programmatic access to kernel buffer from Rust
-programs, and a Rust-based `klogctl` implementation.
+The complete API can be found in the `main.rs` file which uses the sync/async versions of the APIs, both single-shot and iterative.
 
 ### Depend on the rmesg crate
 
@@ -45,45 +47,58 @@ Include it in Cargo.toml:
 
 ```.toml
 [dependencies]
-rmesg = "0.6.0"
+rmesg = "1.0.0"
 ```
 
-### Reading the entire buffer as a string
+Suppots two optional features:
 
-To read the kernel message buffer as a String (the string will have line-breaks you'll have to make sense of):
+* `async` - Makes all APIs asynchronous (using Tokio)
+* `ptr` - Entries become `Box<EntryStruct>` instead of `EntryStruct`. It means you're moving a usize'd pointer instead of the whole struct.
+
+### Reading the buffer single-shot (non-blocking)
+
+*NOTE: Reading single-shot is the same interface for sync or async*
 
 ```.rust
-    use rmesg::rmesg;
+    use rmesg;
 
-    let log_result = rmesg(false);
-    assert!(log_result.is_ok(), "Failed to call rmesg");
+    // Read all logs as one big string with line-breaks
+    let raw = rmesg::logs_raw(opts.backend, opts.clear).unwrap();
+    print!("{}", raw)
 
-    let logs = log_result.unwrap();
-    assert!(logs.len() > 0, "Should have non-empty logs");
+    // Read logs as a Vec of Entry'ies (`Vec<Entry>`)
+    // and can be processed entry-by-entry
+    let entries = rmesg::log_entries(opts.backend, opts.clear).unwrap();
+    for entry in entries {
+        println!("{}", entry)
+    }
 ```
 
-The parameter sole bool parameter tells the rmesg call whether to clear the buffer when read, or to preserve it. When preserved,
-subsequent calls will get repeated lines. In order to read line-by-line without clearing the buffer, use the second method described below.
+### Indefinitely iterating
 
-### Reading the buffer line-by-line
-
-However must useful is being able to read the kernel logs line-by-line:
+Without feature `async` (i.e. synchronous), provides an Iterator over Result<Entry, RMesgError>.
 
 ```.rust
-    use rmesg::{kernel_log_timestamps_enable, RMesgLinesIterator, SUGGESTED_POLL_INTERVAL};
+    use rmesg;
 
-    // Enable timestamps in kernel log lines if not already enabled - otherwise the iterator will
-    // ignore all lines and get stuck.
-    let enable_timestamp_result = kernel_log_timestamps_enable(true);
-    assert!(enable_timestamp_result.is_ok());
+    let entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw)?;
+    for maybe_entry in entries {
+        let entry = maybe_entry?;
+        println!("{}", entry);
+    }
+```
 
-    // Don't clear the buffer. Poll every second.
-    let iterator_result = RMesgLinesIterator::with_options(false, SUGGESTED_POLL_INTERVAL);
-    assert!(iterator_result.is_ok());
+With feature `async` (i.e. asynchronous), provides a Stream over Result<Entry, RMesgError>.
 
-    let iterator = iterator_result.unwrap();
+```.rust
+    use rmesg;
 
-    for line in iterator {
-        // Do stuff
+    // given that it's a stream over Result's, use the conveniences provided to us
+    use futures_util::stream::TryStreamExt;
+
+    let mut entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw).await?;
+
+    while let Some(entry) = entries.try_next().await? {
+        println!("{}", entry);
     }
 ```
