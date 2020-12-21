@@ -23,7 +23,7 @@ USAGE:
     rmesg [FLAGS] [OPTIONS]
 
 FLAGS:
-    -c               Clear ring buffer after printing
+    -c               Clear ring buffer after printing (only when using klogctl)
     -f               When specified, follows logs (like tail -f)
     -h, --help       Prints help information
     -r               Print raw data as it came from the source backend.
