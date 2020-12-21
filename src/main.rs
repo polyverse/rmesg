@@ -4,14 +4,16 @@
 use clap::{App, Arg};
 #[cfg(feature = "async")]
 use futures_util::stream::TryStreamExt;
+
 use rmesg::error::RMesgError;
-use rmesg::klogctl::{klog, klog_timestamps_enabled, KLogEntries, SUGGESTED_POLL_INTERVAL};
+use rmesg::klogctl::{klog_timestamps_enabled, KLogEntries, SUGGESTED_POLL_INTERVAL};
 use std::error::Error;
 
 #[derive(Debug)]
 struct Options {
     follow: bool,
     clear: bool,
+    backend: rmesg::Backend,
 }
 
 #[cfg_attr(feature = "async", tokio::main)]
@@ -20,7 +22,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let opts = parse_args();
 
     if !opts.follow {
-        let entries = klog(opts.clear).unwrap();
+        let entries = rmesg::entries(opts.backend, opts.clear).unwrap();
         for entry in entries {
             println!("{}", entry)
         }
@@ -51,7 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let opts = parse_args();
 
     if !opts.follow {
-        let entries = klog(opts.clear).unwrap();
+        let entries = rmesg::entries(opts.backend, opts.clear).unwrap();
         for entry in entries {
             println!("{}", entry)
         }
@@ -95,10 +97,27 @@ fn parse_args() -> Options {
                 .short("c")
                 .help("Clear ring buffer after printing"),
         )
+        .arg(
+            Arg::with_name("backend")
+                .short("b")
+                .takes_value(true)
+                .possible_values(&["klog", "kmsg"])
+                .help("Select backend from where to read the logs. klog is the syslog/klogctl system call through libc. kmsg is the /dev/kmsg file."),
+        )
         .get_matches();
 
     let follow = !matches!(matches.occurrences_of("follow"), 0);
     let clear = !matches!(matches.occurrences_of("clear"), 0);
+    let backend = match matches.value_of("backend") {
+        None => rmesg::Backend::Default,
+        Some("klog") => rmesg::Backend::KLog,
+        Some("kmsg") => rmesg::Backend::KMsg,
+        Some(v) => panic!("Something went wrong. Possible values for backend were not restricted by the CLI parser and this value slipped through somehow: {}", v),
+    };
 
-    Options { follow, clear }
+    Options {
+        follow,
+        clear,
+        backend,
+    }
 }

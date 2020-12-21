@@ -351,8 +351,8 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
     lazy_static! {
         static ref RE_ENTRY_WITH_TIMESTAMP: Regex = Regex::new(
             r"(?x)^
-            [[:space:]]*<(?P<faclevstr>[[:xdigit:]]*)>
-            [[:space:]]*([\[][[:space:]]*(?P<timestampstr>[[:xdigit:]]*\.[[:xdigit:]]*)[\]])?
+            [[:space:]]*<(?P<faclevstr>[[:digit:]]*)>
+            [[:space:]]*([\[][[:space:]]*(?P<timestampstr>[[:digit:]]*\.[[:digit:]]*)[\]])?
             (?P<message>.*)$"
         )
         .unwrap();
@@ -362,38 +362,43 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
         return Err(EntryParsingError::EmptyLine);
     }
 
-    if let Some(klogparts) = RE_ENTRY_WITH_TIMESTAMP.captures(&line) {
-        let (facility, level) = common::parse_favlecstr(&klogparts["faclevstr"], line)?;
+    let (facility, level, timestamp_from_system_start, message) =
+        if let Some(klogparts) = RE_ENTRY_WITH_TIMESTAMP.captures(&line) {
+            let (facility, level) = match klogparts.name("faclevstr") {
+                Some(faclevstr) => common::parse_favlecstr(faclevstr.as_str(), line)?,
+                None => (None, None),
+            };
 
-        let timestamp_from_system_start = match klogparts.name("timestampstr") {
-            Some(timestampstr) => common::parse_timestamp_secs(timestampstr.as_str(), line)?,
-            None => None,
+            let timestamp_from_system_start = match klogparts.name("timestampstr") {
+                Some(timestampstr) => common::parse_timestamp_secs(timestampstr.as_str(), line)?,
+                None => None,
+            };
+
+            let message = klogparts["message"].to_owned();
+
+            (facility, level, timestamp_from_system_start, message)
+        } else {
+            (None, None, None, line.to_owned())
         };
 
-        let message = klogparts["message"].to_owned();
-
-        cfg_if::cfg_if! {
-            if #[cfg(feature="ptr")] {
-                Ok(Box::new(EntryStruct{
-                    facility,
-                    level,
-                    timestamp_from_system_start,
-                    message,
-                }))
-            } else {
-                Ok(EntryStruct {
-                    facility,
-                    level,
-                    timestamp_from_system_start,
-                    message,
-                })
-            }
+    cfg_if::cfg_if! {
+        if #[cfg(feature="ptr")] {
+            Ok(Box::new(EntryStruct{
+                facility:,
+                level,
+                sequence_num: None,
+                timestamp_from_system_start,
+                message,
+            }))
+        } else {
+            Ok(EntryStruct {
+                facility,
+                level,
+                sequence_num: None,
+                timestamp_from_system_start,
+                message,
+            })
         }
-    } else {
-        Err(EntryParsingError::Generic(format!(
-            "Invalid line: {}",
-            &line
-        )))
     }
 }
 
@@ -466,9 +471,9 @@ mod test {
 
     #[test]
     fn test_klog() {
-        let logs = klog(false);
-        assert!(logs.is_ok(), "Failed to call rmesg");
-        assert!(logs.unwrap().len() > 0, "Should have non-empty logs");
+        let entries = klog(false);
+        assert!(entries.is_ok(), "Failed to call rmesg");
+        assert!(!entries.unwrap().is_empty(), "Should have non-empty logs");
     }
 
     #[cfg(not(feature = "async"))]
@@ -485,8 +490,30 @@ mod test {
         let iterator = iterator_result.unwrap();
 
         // Read 10 lines and quit
+        for (count, entry) in iterator.enumerate() {
+            assert!(entry.is_ok());
+            if count > 10 {
+                break;
+            }
+        }
+    }
+
+    #[cfg(feature = "async")]
+    #[test]
+    fn test_stream() {
+        // uncomment below if you want to be extra-sure
+        //let enable_timestamp_result = kernel_log_timestamps_enable(true);
+        //assert!(enable_timestamp_result.is_ok());
+
+        // Don't clear the buffer. Poll every second.
+        let iterator_result = KLogEntries::with_options(false, SUGGESTED_POLL_INTERVAL);
+        assert!(iterator_result.is_ok());
+
+        let iterator = iterator_result.unwrap();
+
+        // Read 10 lines and quit
         let mut count: u32 = 0;
-        for entry in iterator {
+        while let Some(entry) = iterator.next().await? {
             assert!(entry.is_ok());
             count = count + 1;
             if count > 10 {
@@ -497,16 +524,22 @@ mod test {
 
     #[test]
     fn test_parse_serialize() {
-        let line1 = "<5>a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
+        let line1 = "<6>a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
         let e1r = entry_from_line(line1);
         assert!(e1r.is_ok());
-        let line1again = format!("{}", e1r.unwrap());
+        let line1again = e1r.unwrap().to_klog_str();
         assert_eq!(line1, line1again);
 
         let line2 = "<7>[   233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
         let e2r = entry_from_line(line2);
         assert!(e2r.is_ok());
-        let line2again = format!("{}", e2r.unwrap());
+        let line2again = e2r.unwrap().to_klog_str();
         assert_eq!(line2, line2again);
+
+        let line3 = "233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
+        let e3r = entry_from_line(line3);
+        assert!(e3r.is_ok());
+        let line3again = e3r.unwrap().to_klog_str();
+        assert_eq!(line3, line3again);
     }
 }

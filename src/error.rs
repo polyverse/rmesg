@@ -16,6 +16,7 @@ pub enum RMesgError {
     InternalError(String),
     EntryParsingError(String),
     UnableToObtainElapsedTime(SystemTimeError),
+    DevKMsgFileOpenError(String),
 }
 impl Error for RMesgError {}
 impl Display for RMesgError {
@@ -36,6 +37,7 @@ impl Display for RMesgError {
                 Self::UnableToAddDurationToSystemTime =>
                     "Failed to add a Duration to SystemTime".to_owned(),
                 Self::KLogTimestampsDisabled => "Kernel Log timestamps are disabled".to_owned(),
+                Self::DevKMsgFileOpenError(s) => s.to_owned(),
             }
         )
     }
