@@ -2,8 +2,11 @@
 /// This CLI builds on top of the eponymous crate and provides a command-line utility.
 ///
 use clap::{App, Arg};
-use rmesg::{kernel_log_timestamps_enabled, rmesg, RMesgLinesIterator, SUGGESTED_POLL_INTERVAL};
-use std::process;
+#[cfg(feature = "async")]
+use futures_util::stream::TryStreamExt;
+use rmesg::error::RMesgError;
+use rmesg::klogctl::{klog, klog_timestamps_enabled, KLogEntries, SUGGESTED_POLL_INTERVAL};
+use std::error::Error;
 
 #[derive(Debug)]
 struct Options {
@@ -11,48 +14,68 @@ struct Options {
     clear: bool,
 }
 
-fn main() {
+#[cfg_attr(feature = "async", tokio::main)]
+#[cfg(feature = "async")]
+async fn main() -> Result<(), Box<dyn Error>> {
     let opts = parse_args();
 
     if !opts.follow {
-        println!("{}", rmesg(opts.clear).unwrap())
+        let entries = klog(opts.clear).unwrap();
+        for entry in entries {
+            println!("{}", entry)
+        }
     } else {
-        let log_timestamps_enabled = match kernel_log_timestamps_enabled() {
-            Ok(b) => b,
-            Err(e) => {
-                eprintln!("Unable to check whether kernel log timestamps are enabled. Unable to follow/tail logs. Error: {:?}", e);
-                process::exit(1);
-            }
-        };
+        let log_timestamps_enabled = klog_timestamps_enabled()?;
 
         // ensure timestamps in logs
         if !log_timestamps_enabled {
             eprintln!("WARNING: Timestamps are disabled but tailing/following logs (as you've requested) requires them.");
-            eprintln!("You may see no output (lines without timestamps are ignored).");
+            eprintln!("Aboring program.");
             eprintln!("You can enable timestamps by running the following: ");
             eprintln!("  echo Y > /sys/module/printk/parameters/time");
+            return Err(RMesgError::KLogTimestampsDisabled.into());
         }
 
-        let lines = match RMesgLinesIterator::with_options(opts.clear, SUGGESTED_POLL_INTERVAL) {
-            Ok(l) => l,
-            Err(e) => {
-                eprintln!(
-                    "Unable to get an iterator over kernel log messages: {:?}",
-                    e
-                );
-                process::exit(1);
-            }
-        };
-        for maybe_line in lines {
-            match maybe_line {
-                Ok(line) => println!("{}", line),
-                Err(e) => {
-                    eprintln!("Error when iterating over kernel log messages: {:?}", e);
-                    process::exit(1);
-                }
-            }
+        let mut entries = KLogEntries::with_options(opts.clear, SUGGESTED_POLL_INTERVAL)?;
+
+        while let Some(entry) = entries.try_next().await? {
+            println!("{}", entry);
         }
     }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "async"))]
+fn main() -> Result<(), Box<dyn Error>> {
+    let opts = parse_args();
+
+    if !opts.follow {
+        let entries = klog(opts.clear).unwrap();
+        for entry in entries {
+            println!("{}", entry)
+        }
+    } else {
+        let log_timestamps_enabled = klog_timestamps_enabled()?;
+
+        // ensure timestamps in logs
+        if !log_timestamps_enabled {
+            eprintln!("WARNING: Timestamps are disabled but tailing/following logs (as you've requested) requires them.");
+            eprintln!("Aboring program.");
+            eprintln!("You can enable timestamps by running the following: ");
+            eprintln!("  echo Y > /sys/module/printk/parameters/time");
+            return Err(RMesgError::KLogTimestampsDisabled.into());
+        }
+
+        let entries = KLogEntries::with_options(opts.clear, SUGGESTED_POLL_INTERVAL)?;
+
+        for maybe_entry in entries {
+            let entry = maybe_entry?;
+            println!("{}", entry);
+        }
+    }
+
+    Ok(())
 }
 
 fn parse_args() -> Options {

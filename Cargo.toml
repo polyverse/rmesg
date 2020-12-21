@@ -8,23 +8,47 @@ categories = ["os", "command-line-utilities"]
 keywords = ["dmesg", "klogctl", "printk", "syslog"]
 readme = "README.md"
 repository = "https://github.com/polyverse/rmesg"
-
 description = """This is a fully Rust-based implementation of the popular dmesg Linux utility, giving
  programmatic access to the kernel log buffer."""
-
-[lib]
-name = "rmesg"
-path = "src/lib.rs"
 
 [[bin]]
 name = "rmesg"
 path = "src/main.rs"
 
+[lib]
+name = "rmesg"
+path = "src/lib.rs"
+
+[features]
+# The default set of optional packages. Most people will want to use these
+# packages, but they are strictly optional. Note that `session` is not a package
+# but rather another feature listed in this manifest.
+async = ["futures", "futures-util", "tokio"]
+
+# Moves all parsed entries to the heap and moves pointers everywhere
+# Depending on use-case this can save a lot of memory copies
+# at the cost of pointer-dereferencing.
+ptr = []
+
 [dependencies]
-libc = "0.2.69"
-cfg-if = "0.1.10"
+libc = "0.2.81"
+cfg-if = "1.0.0"
 enum-display-derive = "0.1.0"
-errno = "0.2.5"
-clap = "2.33.0"
+errno = "0.2.7"
+clap = "2.33.3"
 lazy_static = "1.4.0"
-regex = "1.3.7"
+regex = "1.4.2"
+strum = "0.20.0"
+strum_macros = "0.20.1"
+serde = { version = "1.0.118", features = ["derive", "rc"] }
+num = "0.3.1"
+num-traits = "0.2"
+num-derive = "0.3.3"
+
+# Optional - only enabled through the "async" feature
+futures = { version = "0.3.8", optional = true }
+futures-util = { version = "0.3.8", optional = true }
+tokio = { version = "0.3.6", features = ["rt-multi-thread", "macros", "time"], optional = true }
+
+[dev-dependencies]
+schemars = { version = "0.8.0", features = ["chrono"]}
