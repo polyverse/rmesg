@@ -93,9 +93,12 @@ With feature `async` (i.e. asynchronous), provides a Stream over Result<Entry, R
 ```.rust
     use rmesg;
 
-    let entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw)?;
-    for maybe_entry in entries {
-        let entry = maybe_entry?;
+    // given that it's a stream over Result's, use the conveniences provided to us
+    use futures_util::stream::TryStreamExt;
+
+    let mut entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw).await?;
+
+    while let Some(entry) = entries.try_next().await? {
         println!("{}", entry);
     }
 ```
