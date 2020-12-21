@@ -1,16 +1,22 @@
+use crate::entry;
 use std::convert::From;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::time::SystemTimeError;
 
 #[derive(Debug)]
 pub enum RMesgError {
     NotImplementedForThisPlatform,
+    UnableToObtainSystemTime,
+    UnableToAddDurationToSystemTime,
+    KLogTimestampsDisabled,
     IntegerOutOfBound(String),
     Utf8StringConversionError(String),
     IOError(String),
     InternalError(String),
-    UnableToObtainSystemTime,
-    UnableToAddDurationToSystemTime,
+    EntryParsingError(String),
+    UnableToObtainElapsedTime(SystemTimeError),
+    DevKMsgFileOpenError(String),
 }
 impl Error for RMesgError {}
 impl Display for RMesgError {
@@ -19,16 +25,19 @@ impl Display for RMesgError {
             f,
             "RMesgError:: {}",
             match self {
-                RMesgError::NotImplementedForThisPlatform =>
+                Self::NotImplementedForThisPlatform =>
                     "RMesg not implemented for this platform.".to_owned(),
-                RMesgError::IntegerOutOfBound(s) => format!("IntegerOutOfBound: {}", s),
-                RMesgError::Utf8StringConversionError(s) =>
-                    format!("Utf8StringConversionError: {}", s),
-                RMesgError::IOError(s) => format!("std::io::Error: {}", s),
-                RMesgError::InternalError(s) => format!("InternalError: {}", s),
-                RMesgError::UnableToObtainSystemTime => "Failed to get SystemTime.".to_owned(),
-                RMesgError::UnableToAddDurationToSystemTime =>
+                Self::IntegerOutOfBound(s) => format!("IntegerOutOfBound: {}", s),
+                Self::Utf8StringConversionError(s) => format!("Utf8StringConversionError: {}", s),
+                Self::IOError(s) => format!("std::io::Error: {}", s),
+                Self::InternalError(s) => format!("InternalError: {}", s),
+                Self::EntryParsingError(s) => format!("EntryParsingError: {}", s),
+                Self::UnableToObtainElapsedTime(s) => format!("UnableToObtainElapsedTime: {}", s),
+                Self::UnableToObtainSystemTime => "Failed to get SystemTime.".to_owned(),
+                Self::UnableToAddDurationToSystemTime =>
                     "Failed to add a Duration to SystemTime".to_owned(),
+                Self::KLogTimestampsDisabled => "Kernel Log timestamps are disabled".to_owned(),
+                Self::DevKMsgFileOpenError(s) => s.to_owned(),
             }
         )
     }
@@ -42,5 +51,11 @@ impl From<std::string::FromUtf8Error> for RMesgError {
 impl From<std::io::Error> for RMesgError {
     fn from(err: std::io::Error) -> RMesgError {
         RMesgError::IOError(format!("{:?}", err))
+    }
+}
+
+impl From<entry::EntryParsingError> for RMesgError {
+    fn from(err: entry::EntryParsingError) -> RMesgError {
+        RMesgError::EntryParsingError(format!("{:?}", err))
     }
 }

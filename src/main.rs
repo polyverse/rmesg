@@ -2,55 +2,62 @@
 /// This CLI builds on top of the eponymous crate and provides a command-line utility.
 ///
 use clap::{App, Arg};
-use rmesg::{kernel_log_timestamps_enabled, rmesg, RMesgLinesIterator, SUGGESTED_POLL_INTERVAL};
-use std::process;
+use std::error::Error;
+
+#[cfg(feature = "async")]
+use futures_util::stream::TryStreamExt;
 
 #[derive(Debug)]
 struct Options {
     follow: bool,
     clear: bool,
+    raw: bool,
+    backend: rmesg::Backend,
 }
 
-fn main() {
+#[cfg_attr(feature = "async", tokio::main)]
+#[cfg(feature = "async")]
+async fn main() -> Result<(), Box<dyn Error>> {
     let opts = parse_args();
 
     if !opts.follow {
-        println!("{}", rmesg(opts.clear).unwrap())
+        nofollow(opts);
     } else {
-        let log_timestamps_enabled = match kernel_log_timestamps_enabled() {
-            Ok(b) => b,
-            Err(e) => {
-                eprintln!("Unable to check whether kernel log timestamps are enabled. Unable to follow/tail logs. Error: {:?}", e);
-                process::exit(1);
-            }
-        };
+        let mut entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw).await?;
 
-        // ensure timestamps in logs
-        if !log_timestamps_enabled {
-            eprintln!("WARNING: Timestamps are disabled but tailing/following logs (as you've requested) requires them.");
-            eprintln!("You may see no output (lines without timestamps are ignored).");
-            eprintln!("You can enable timestamps by running the following: ");
-            eprintln!("  echo Y > /sys/module/printk/parameters/time");
+        while let Some(entry) = entries.try_next().await? {
+            println!("{}", entry);
         }
+    }
 
-        let lines = match RMesgLinesIterator::with_options(opts.clear, SUGGESTED_POLL_INTERVAL) {
-            Ok(l) => l,
-            Err(e) => {
-                eprintln!(
-                    "Unable to get an iterator over kernel log messages: {:?}",
-                    e
-                );
-                process::exit(1);
-            }
-        };
-        for maybe_line in lines {
-            match maybe_line {
-                Ok(line) => println!("{}", line),
-                Err(e) => {
-                    eprintln!("Error when iterating over kernel log messages: {:?}", e);
-                    process::exit(1);
-                }
-            }
+    Ok(())
+}
+
+#[cfg(not(feature = "async"))]
+fn main() -> Result<(), Box<dyn Error>> {
+    let opts = parse_args();
+
+    if !opts.follow {
+        nofollow(opts);
+    } else {
+        let entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw)?;
+        for maybe_entry in entries {
+            let entry = maybe_entry?;
+            println!("{}", entry);
+        }
+    }
+
+    Ok(())
+}
+
+fn nofollow(opts: Options) {
+    if opts.raw {
+        let raw = rmesg::logs_raw(opts.backend, opts.clear).unwrap();
+        print!("{}", raw)
+    } else {
+        let entries = rmesg::log_entries(opts.backend, opts.clear).unwrap();
+        for entry in entries {
+            println!("{}", entry)
         }
     }
 }
@@ -72,10 +79,34 @@ fn parse_args() -> Options {
                 .short("c")
                 .help("Clear ring buffer after printing"),
         )
+        .arg(
+            Arg::with_name("raw")
+                .short("r")
+                .help("Print raw data as it came from the source backend."),
+        )
+        .arg(
+            Arg::with_name("backend")
+                .short("b")
+                .takes_value(true)
+                .possible_values(&["klogctl", "devkmsg"])
+                .help("Select backend from where to read the logs. klog is the syslog/klogctl system call through libc. kmsg is the /dev/kmsg file."),
+        )
         .get_matches();
 
     let follow = !matches!(matches.occurrences_of("follow"), 0);
     let clear = !matches!(matches.occurrences_of("clear"), 0);
+    let raw = !matches!(matches.occurrences_of("raw"), 0);
+    let backend = match matches.value_of("backend") {
+        None => rmesg::Backend::Default,
+        Some("klogctl") => rmesg::Backend::KLogCtl,
+        Some("devkmsg") => rmesg::Backend::DevKMsg,
+        Some(v) => panic!("Something went wrong. Possible values for backend were not restricted by the CLI parser and this value slipped through somehow: {}", v),
+    };
 
-    Options { follow, clear }
+    Options {
+        follow,
+        clear,
+        raw,
+        backend,
+    }
 }
