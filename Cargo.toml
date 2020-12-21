@@ -53,4 +53,4 @@ tokio = { version = "0.3.6", features = ["rt-multi-thread", "macros", "time", "f
 
 [dev-dependencies]
 schemars = { version = "0.8.0", features = ["chrono"]}
-tokio-test = "*"
+tokio-test = "0.3.0"
