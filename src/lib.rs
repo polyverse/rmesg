@@ -32,10 +32,10 @@ pub enum Backend {
 }
 
 #[cfg(not(feature = "async"))]
-type EntriesIterator = Box<dyn Iterator<Item = Result<entry::Entry, error::RMesgError>>>;
+pub type EntriesIterator = Box<dyn Iterator<Item = Result<entry::Entry, error::RMesgError>>>;
 
 #[cfg(feature = "async")]
-type EntriesStream = Pin<Box<dyn Stream<Item = Result<entry::Entry, error::RMesgError>>>>;
+pub type EntriesStream = Pin<Box<dyn Stream<Item = Result<entry::Entry, error::RMesgError>>>>;
 
 pub fn log_entries(b: Backend, clear: bool) -> Result<Vec<entry::Entry>, error::RMesgError> {
     match b {
