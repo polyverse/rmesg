@@ -73,10 +73,7 @@ impl EntryStruct {
     pub fn to_kmsg_str(&self) -> String {
         let maybe_faclev = self.to_faclev();
 
-        let sequence_num = match self.sequence_num {
-            Some(s) => s,
-            None => 0,
-        };
+        let sequence_num = elf.sequence_num.unwrap_or(0);
 
         let timestampstr = match self.timestamp_from_system_start {
             Some(ts) => format!("{}", ts.as_micros()),
