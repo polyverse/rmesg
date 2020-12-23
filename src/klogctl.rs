@@ -461,7 +461,7 @@ mod test {
     fn get_kernel_buffer_size() {
         let mut dummy_buffer: Vec<u8> = vec![0; 0];
         let response = safely_wrapped_klogctl(KLogType::SyslogActionSizeBuffer, &mut dummy_buffer);
-        assert!(response.is_ok(), "Failed to call klogctl");
+        assert!(response.is_ok(), "Response from klogctl not Ok");
         assert!(
             response.unwrap() > 0,
             "Buffer size should be greater than zero."
@@ -471,7 +471,7 @@ mod test {
     #[test]
     fn test_klog() {
         let entries = klog(false);
-        assert!(entries.is_ok(), "Failed to call rmesg");
+        assert!(entries.is_ok(), "Response from klog not Ok");
         assert!(!entries.unwrap().is_empty(), "Should have non-empty logs");
     }
 

@@ -315,7 +315,7 @@ mod test {
     #[test]
     fn test_kmsg() {
         let entries = kmsg(None);
-        assert!(entries.is_ok(), "Failed to call rmesg");
+        assert!(entries.is_ok(), "Response from kmsg not Ok");
         assert!(!entries.unwrap().is_empty(), "Should have non-empty logs");
     }
 

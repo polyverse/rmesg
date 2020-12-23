@@ -8,20 +8,20 @@ jobs:
   services:
     - docker
   before_install:
-    - docker pull clux/muslrust
+    - docker pull polyverse/rust-dev-env
   script:
-    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo clippy
-    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo clippy --features="async"
-    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo clippy --features="ptr"
-    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo clippy --features="async ptr"
+    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t polyverse/rust-dev-env cargo clippy
+    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t polyverse/rust-dev-env cargo clippy --features="async"
+    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t polyverse/rust-dev-env cargo clippy --features="ptr"
+    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t polyverse/rust-dev-env clippy --features="async ptr"
     # Test with cartesian product of features: async on/off and ptr on/off
-    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo test
-    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo test --features="async"
-    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo test --features="ptr"
-    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo test --features="async ptr"
+    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged polyverse/rust-dev-env test
+    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged polyverse/rust-dev-env cargo test --features="async"
+    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged polyverse/rust-dev-env cargo test --features="ptr"
+    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged polyverse/rust-dev-env cargo test --features="async ptr"
 
     # Build static executable with the Async feature (and not pointer feature)
-    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t clux/muslrust cargo build --release --all-targets --features="async ptr"
+    - docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t polyverse/rust-dev-env cargo build --release --all-targets --features="async ptr"
   deploy:
     - provider: releases
       file:
