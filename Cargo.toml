@@ -45,6 +45,7 @@ num = "0.3.1"
 num-traits = "0.2"
 num-derive = "0.3.3"
 nonblock = "0.1.0"
+schemars = { version = "0.8.0" }
 
 # Optional - only enabled through the "async" feature
 futures = { version = "0.3.8", optional = true }
@@ -52,5 +53,4 @@ futures-util = { version = "0.3.8", optional = true }
 tokio = { version = "0.3.6", features = ["rt-multi-thread", "macros", "time", "fs", "io-util", "stream"], optional = true }
 
 [dev-dependencies]
-schemars = { version = "0.8.0", features = ["chrono"]}
 tokio-test = "0.3.0"

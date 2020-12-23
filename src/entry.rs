@@ -5,10 +5,7 @@ use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::time::Duration;
 use strum_macros::EnumString;
-
-#[cfg(test)]
 use schemars::JsonSchema;
-#[cfg(test)]
 use serde::Deserialize;
 
 #[cfg(not(feature = "ptr"))]
@@ -20,8 +17,7 @@ pub type Entry = BoxedEntryStruct;
 pub type BoxedEntryStruct = Box<EntryStruct>;
 
 /// A parsed/structured entry from kernel log buffer
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(test, derive(JsonSchema, Deserialize))]
+#[derive(PartialEq, Debug, Clone, JsonSchema, Deserialize)]
 pub struct EntryStruct {
     // Log facility
     pub facility: Option<LogFacility>,
@@ -103,8 +99,7 @@ impl Display for EntryStruct {
 }
 
 /// Linux kmesg (kernel message buffer) Log Facility.
-#[derive(EnumString, Debug, PartialEq, Display, Copy, Clone, FromPrimitive, Serialize)]
-#[cfg_attr(test, derive(JsonSchema, Deserialize))]
+#[derive(EnumString, Debug, PartialEq, Display, Copy, Clone, FromPrimitive, Serialize, JsonSchema, Deserialize)]
 pub enum LogFacility {
     #[strum(serialize = "kern")]
     Kern = 0,
@@ -144,8 +139,7 @@ pub enum LogFacility {
 }
 
 /// Linux kmesg (kernel message buffer) Log Level.
-#[derive(EnumString, Debug, PartialEq, Display, Copy, Clone, FromPrimitive, Serialize)]
-#[cfg_attr(test, derive(JsonSchema, Deserialize))]
+#[derive(EnumString, Debug, PartialEq, Display, Copy, Clone, FromPrimitive, Serialize, JsonSchema, Deserialize)]
 pub enum LogLevel {
     #[strum(serialize = "emerg")]
     Emergency = 0,
