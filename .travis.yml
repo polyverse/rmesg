@@ -1,6 +1,3 @@
-language: rust
-rust:
-  - stable
 services:
   - docker
 before_install:
