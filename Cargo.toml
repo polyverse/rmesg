@@ -23,7 +23,7 @@ path = "src/lib.rs"
 # The default set of optional packages. Most people will want to use these
 # packages, but they are strictly optional. Note that `session` is not a package
 # but rather another feature listed in this manifest.
-async = ["futures", "futures-util", "tokio"]
+async = ["futures", "futures-util", "tokio", "tokio-stream"]
 
 # Moves all parsed entries to the heap and moves pointers everywhere
 # Depending on use-case this can save a lot of memory copies
@@ -50,7 +50,10 @@ schemars = { version = "0.8.0" }
 # Optional - only enabled through the "async" feature
 futures = { version = "0.3.8", optional = true }
 futures-util = { version = "0.3.8", optional = true }
-tokio = { version = "0.3.6", features = ["rt-multi-thread", "macros", "time", "fs", "io-util", "stream"], optional = true }
+tokio = { version = "1.0.1", features = [], optional = true }
+tokio-stream = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
-tokio-test = "0.3.0"
+tokio-test = "0.4.0"
+
+# "rt-multi-thread", "macros", "time", "fs", "io-util", "stream"
