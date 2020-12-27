@@ -1,12 +1,6 @@
 name: Build Status
 
-on:
-  push:
-    branches:
-      - .*
-
-  # Run tests for any PRs.
-  pull_request:
+on: [push, pull_request]
 
 env:
   BASE_COMMAND: rust-dev-envdocker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest
@@ -15,31 +9,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
-
+    strategy:
+      matrix:
+        operation: ["clippy", "test"]
+        # Features available in the crate
+        featsync: ["", "async"]
+        feattrait: ["", "extra-traits"]
+        featptr: ["", "ptr"]
     steps:
       - uses: actions/checkout@v2
 
-      - name: Clippy sync
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo clippy --all
-
-      - name: Clippy ptr
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo clippy --all --features="ptr"
-
-      - name: Clippy async
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo clippy --all --features="async"
-
-      - name: Clippy async ptr
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo clippy --all --features="async ptr"
-
-      - name: Test sync
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo test --all
-
-      - name: Test ptr
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo test --all --features="ptr"
-
-      - name: Test async
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo test --all --features="async"
-
-      - name: Test async ptr
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo test --all --features="async ptr"
-
+      - name: ${{matrix.operation}} ${{matrix.featsync}} ${{matrix.feattrait}} ${{matrix.featptr}}
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo ${{matrix.operation}} --all --features="${{matrix.featsync}} ${{matrix.feattrait}} ${{matrix.featptr}}"

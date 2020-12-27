@@ -15,7 +15,7 @@ struct Options {
     backend: rmesg::Backend,
 }
 
-#[cfg_attr(feature = "async", tokio::main)]
+#[cfg_attr(feature = "async", tokio::main(flavor = "current_thread"))]
 #[cfg(feature = "async")]
 async fn main() -> Result<(), Box<dyn Error>> {
     let opts = parse_args();

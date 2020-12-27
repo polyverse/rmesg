@@ -104,7 +104,7 @@ pub struct KLogEntries {
     last_poll: SystemTime,
 
     #[cfg(feature = "async")]
-    sleep_future: Option<Sleep>,
+    sleep_future: Option<Pin<Box<Sleep>>>,
 }
 
 impl KLogEntries {
@@ -236,7 +236,7 @@ impl Stream for KLogEntries {
     type Item = Result<Entry, RMesgError>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(mut sf) = self.sleep_future.take() {
-            match Future::poll(Pin::new(&mut sf), cx) {
+            match Future::poll(sf.as_mut(), cx) {
                 // still sleeping? Go back to sleep.
                 Poll::Pending => {
                     // put the future back in
@@ -262,9 +262,10 @@ impl Stream for KLogEntries {
                     return Poll::Ready(Some(Err(e)));
                 }
             } else {
-                let mut sf = sleep(self.sleep_interval);
-                if let Poll::Pending = Future::poll(Pin::new(&mut sf), cx) {
-                    self.sleep_future = Some(sf);
+                let sf = sleep(self.sleep_interval);
+                let mut pinned_sf = Box::pin(sf);
+                if Future::poll(pinned_sf.as_mut(), cx).is_pending() {
+                    self.sleep_future = Some(pinned_sf);
                     return Poll::Pending;
                 }
             }
@@ -455,7 +456,7 @@ mod test {
     use super::*;
 
     #[cfg(feature = "async")]
-    use futures::StreamExt;
+    use tokio_stream::StreamExt;
 
     #[test]
     fn get_kernel_buffer_size() {

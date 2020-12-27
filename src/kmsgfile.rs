@@ -144,11 +144,11 @@ impl Stream for KMsgEntries {
     type Item = Result<Entry, RMesgError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.lines.as_mut().poll_next(cx) {
+        match self.lines.as_mut().poll_next_line(cx) {
             Poll::Pending => Poll::Pending,
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e.into()))),
-            Poll::Ready(Some(Ok(line))) => {
+            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e.into()))),
+            Poll::Ready(Ok(None)) => Poll::Ready(None),
+            Poll::Ready(Ok(Some(line))) => {
                 let value = if self.raw {
                     let entry = EntryStruct {
                         facility: None,
