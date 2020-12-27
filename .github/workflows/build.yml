@@ -2,9 +2,6 @@ name: Build Status
 
 on: [push, pull_request]
 
-env:
-  BASE_COMMAND: rust-dev-envdocker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest
-
 jobs:
   build:
     runs-on: ubuntu-latest
