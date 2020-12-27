@@ -1,6 +1,5 @@
 // Copyright (c) 2019 Polyverse Corporation
 
-use serde::Deserialize;
 use serde::Serialize;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
@@ -9,6 +8,8 @@ use strum_macros::EnumString;
 
 #[cfg(feature = "extra-traits")]
 use schemars::JsonSchema;
+#[cfg(feature = "extra-traits")]
+use serde::Deserialize;
 
 #[cfg(not(feature = "ptr"))]
 pub type Entry = EntryStruct;

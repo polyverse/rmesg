@@ -20,4 +20,4 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: ${{matrix.operation}} ${{matrix.featsync}} ${{matrix.feattrait}} ${{matrix.featptr}}
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo ${{matrix.operation}} --all --features="${{matrix.featsync}} ${{matrix.feattrait}} ${{matrix.featptr}}"
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --privileged --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo ${{matrix.operation}} --all --features="${{matrix.featsync}} ${{matrix.feattrait}} ${{matrix.featptr}}"
