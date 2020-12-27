@@ -152,8 +152,6 @@ pub enum LogFacility {
     Clone,
     FromPrimitive,
     Serialize,
-    JsonSchema,
-    Deserialize,
 )]
 pub enum LogLevel {
     #[strum(serialize = "emerg")]
