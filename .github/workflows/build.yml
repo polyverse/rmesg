@@ -12,8 +12,10 @@ jobs:
       - name: Style (rustfmt)
         run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo fmt --all -- --check
 
+        # Allow this lint: -D clippy::field-reassign-with-default
+        # Due to this: https://github.com/GREsau/schemars/pull/65
       - name: Lint (Clippy)
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo clippy --workspace --all-targets --all-features -- -D warnings -A clippy::field-reassign-with-default
 
       - name: Test
         run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo test --workspace --all-targets --all-features

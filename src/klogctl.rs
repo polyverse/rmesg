@@ -447,9 +447,6 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
 mod test {
     use super::*;
 
-    #[cfg(feature = "async")]
-    use tokio_stream::StreamExt;
-
     #[test]
     fn get_kernel_buffer_size() {
         let mut dummy_buffer: Vec<u8> = vec![0; 0];
@@ -505,9 +502,9 @@ mod test {
 
         // Read 10 lines and quit
         let mut count: u32 = 0;
-        while let Some(entry) = tokio_test::block_on(stream.next()) {
+        while let Some(entry) = tokio_test::block_on(tokio_stream::StreamExt::next(&mut stream)) {
             assert!(entry.is_ok());
-            count = count + 1;
+            count += 1;
             if count > 10 {
                 break;
             }
