@@ -50,10 +50,10 @@ Include it in Cargo.toml:
 rmesg = "1.0.0"
 ```
 
-Suppots two optional features:
+Suppots two features:
 
-* `async` - Makes all APIs asynchronous (using Tokio)
-* `ptr` - Entries become `Box<EntryStruct>` instead of `EntryStruct`. It means you're moving a usize'd pointer instead of the whole struct.
+* `async` - Exposes asynchronous Stream API
+* `sync` - Exposes synchronous Iterator API
 
 ### Reading the buffer single-shot (non-blocking)
 
@@ -76,7 +76,7 @@ Suppots two optional features:
 
 ### Indefinitely iterating
 
-Without feature `async` (i.e. synchronous), provides an Iterator over Result<Entry, RMesgError>.
+With feature `sync` (i.e. synchronous), provides an Iterator over Result<Entry, RMesgError>.
 
 ```.rust
     use rmesg;
