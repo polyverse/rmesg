@@ -2,10 +2,8 @@
 /// This CLI builds on top of the eponymous crate and provides a command-line utility.
 ///
 use clap::{App, Arg};
-use std::error::Error;
-
-#[cfg(feature = "async")]
 use futures_util::stream::TryStreamExt;
+use std::error::Error;
 
 #[derive(Debug)]
 struct Options {
@@ -15,34 +13,16 @@ struct Options {
     backend: rmesg::Backend,
 }
 
-#[cfg_attr(feature = "async", tokio::main(flavor = "current_thread"))]
-#[cfg(feature = "async")]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
     let opts = parse_args();
 
     if !opts.follow {
         nofollow(opts);
     } else {
-        let mut entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw).await?;
+        let mut entries = rmesg::logs_stream(opts.backend, opts.clear, opts.raw).await?;
 
         while let Some(entry) = entries.try_next().await? {
-            println!("{}", entry);
-        }
-    }
-
-    Ok(())
-}
-
-#[cfg(not(feature = "async"))]
-fn main() -> Result<(), Box<dyn Error>> {
-    let opts = parse_args();
-
-    if !opts.follow {
-        nofollow(opts);
-    } else {
-        let entries = rmesg::logs_iter(opts.backend, opts.clear, opts.raw)?;
-        for maybe_entry in entries {
-            let entry = maybe_entry?;
             println!("{}", entry);
         }
     }

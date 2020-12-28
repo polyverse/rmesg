@@ -1,5 +1,5 @@
 use crate::common;
-use crate::entry::{Entry, EntryParsingError, EntryStruct};
+use crate::entry::{Entry, EntryParsingError};
 /// This crate provides a klogctl interface from Rust.
 /// klogctl is a Linux syscall that allows reading the Linux Kernel Log buffer.
 /// https://elinux.org/Debugging_by_printing
@@ -30,12 +30,12 @@ use futures::stream::Stream;
 #[cfg(feature = "async")]
 use futures::task::{Context, Poll};
 #[cfg(feature = "async")]
-use tokio::time::{sleep, Sleep};
+use tokio::time as tokiotime;
 
-#[cfg(not(feature = "async"))]
+#[cfg(feature = "sync")]
 use std::iter::Iterator;
-#[cfg(not(feature = "async"))]
-use std::thread::sleep;
+#[cfg(feature = "sync")]
+use std::thread;
 
 #[cfg(target_os = "linux")]
 // Can be removed once upstream libc supports it.
@@ -104,7 +104,7 @@ pub struct KLogEntries {
     last_poll: SystemTime,
 
     #[cfg(feature = "async")]
-    sleep_future: Option<Pin<Box<Sleep>>>,
+    sleep_future: Option<Pin<Box<tokiotime::Sleep>>>,
 }
 
 impl KLogEntries {
@@ -199,7 +199,7 @@ impl KLogEntries {
 }
 
 /// Trait to iterate over lines of the kernel log buffer.
-#[cfg(not(feature = "async"))]
+#[cfg(feature = "sync")]
 impl Iterator for KLogEntries {
     type Item = Result<Entry, RMesgError>;
 
@@ -222,7 +222,7 @@ impl Iterator for KLogEntries {
                     return Some(Err(e));
                 }
             } else {
-                sleep(self.sleep_interval);
+                thread::sleep(self.sleep_interval);
             }
         }
 
@@ -262,7 +262,7 @@ impl Stream for KLogEntries {
                     return Poll::Ready(Some(Err(e)));
                 }
             } else {
-                let sf = sleep(self.sleep_interval);
+                let sf = tokiotime::sleep(self.sleep_interval);
                 let mut pinned_sf = Box::pin(sf);
                 if Future::poll(pinned_sf.as_mut(), cx).is_pending() {
                     self.sleep_future = Some(pinned_sf);
@@ -382,21 +382,13 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
             (None, None, None, line.to_owned())
         };
 
-    let entry = EntryStruct {
+    Ok(Entry {
         facility,
         level,
         sequence_num: None,
         timestamp_from_system_start,
         message,
-    };
-
-    cfg_if::cfg_if! {
-        if #[cfg(feature="ptr")] {
-            Ok(Box::new(entry))
-        } else {
-            Ok(entry)
-        }
-    }
+    })
 }
 
 // ************************** Private
@@ -476,7 +468,7 @@ mod test {
         assert!(!entries.unwrap().is_empty(), "Should have non-empty logs");
     }
 
-    #[cfg(not(feature = "async"))]
+    #[cfg(feature = "sync")]
     #[test]
     fn test_iterator() {
         // uncomment below if you want to be extra-sure

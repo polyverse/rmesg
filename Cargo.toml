@@ -14,22 +14,19 @@ description = """This is a fully Rust-based implementation of the popular dmesg 
 [[bin]]
 name = "rmesg"
 path = "src/main.rs"
+required-features = ["async"]
 
 [lib]
 name = "rmesg"
 path = "src/lib.rs"
 
 [features]
+default = ["sync"]
 # The default set of optional packages. Most people will want to use these
 # packages, but they are strictly optional. Note that `session` is not a package
 # but rather another feature listed in this manifest.
+sync = []
 async = ["futures", "futures-util", "tokio"]
-
-# Moves all parsed entries to the heap and moves pointers everywhere
-# Depending on use-case this can save a lot of memory copies
-# at the cost of pointer-dereferencing.
-ptr = []
-
 extra-traits = ["schemars"]
 
 [dependencies]
@@ -59,5 +56,3 @@ tokio = { version = "1.0.1", features = ["rt", "fs", "io-util", "macros"], optio
 [dev-dependencies]
 tokio-test = "0.4.0"
 tokio-stream = { version = "0.1.0" }
-
-# , "macros", "time", "fs", "io-util", "stream"

@@ -1,5 +1,5 @@
 use crate::common;
-use crate::entry::{Entry, EntryParsingError, EntryStruct};
+use crate::entry::{Entry, EntryParsingError};
 /// This crate provides a klogctl interface from Rust.
 /// klogctl is a Linux syscall that allows reading the Linux Kernel Log buffer.
 /// https://elinux.org/Debugging_by_printing
@@ -15,9 +15,11 @@ use nonblock::NonBlockingReader;
 use regex::Regex;
 use std::fs as stdfs;
 
-#[cfg(not(feature = "async"))]
-use std::io::{BufRead, BufReader, Lines};
-#[cfg(not(feature = "async"))]
+#[cfg(feature = "sync")]
+use std::io as stdio;
+#[cfg(feature = "sync")]
+use std::io::BufRead;
+#[cfg(feature = "sync")]
 use std::iter::Iterator;
 
 #[cfg(feature = "async")]
@@ -29,7 +31,9 @@ use futures::task::{Context, Poll};
 #[cfg(feature = "async")]
 use tokio::fs as tokiofs;
 #[cfg(feature = "async")]
-use tokio::io::{AsyncBufReadExt, BufReader, Lines};
+use tokio::io as tokioio;
+#[cfg(feature = "async")]
+use tokio::io::AsyncBufReadExt;
 
 const DEV_KMSG_PATH: &str = "/dev/kmsg";
 
@@ -39,25 +43,20 @@ const DEV_KMSG_PATH: &str = "/dev/kmsg";
 /// This struct provides the facilities to do that. It implements an iterator to easily iterate
 /// indefinitely over the lines.
 ///
-pub struct KMsgEntries {
+/// Implements the synchronous std::iter::Iterator trait
+///
+#[cfg(feature = "sync")]
+pub struct KMsgEntriesIter {
     raw: bool,
-
-    #[cfg(not(feature = "async"))]
-    lines: Lines<BufReader<stdfs::File>>,
-
-    #[cfg(feature = "async")]
-    lines: Pin<Box<Lines<BufReader<tokiofs::File>>>>,
+    lines_iter: stdio::Lines<stdio::BufReader<stdfs::File>>,
 }
 
-impl KMsgEntries {
+#[cfg(feature = "sync")]
+impl KMsgEntriesIter {
     /// Create a new KMsgEntries with two specific options
     /// `file_override`: When `Some`, overrides the path from where to read the kernel logs
     /// `raw: bool` When set, does not parse the message and instead sets the entire log entry in the "message" field
-    #[cfg(not(feature = "async"))]
-    pub fn with_options(
-        file_override: Option<String>,
-        raw: bool,
-    ) -> Result<KMsgEntries, RMesgError> {
+    pub fn with_options(file_override: Option<String>, raw: bool) -> Result<Self, RMesgError> {
         let path = file_override.unwrap_or_else(|| DEV_KMSG_PATH.to_owned());
 
         let file = match stdfs::File::open(path.clone()) {
@@ -70,16 +69,68 @@ impl KMsgEntries {
             }
         };
 
-        let lines = BufReader::new(file).lines();
+        let lines_iter = stdio::BufReader::new(file).lines();
 
-        Ok(KMsgEntries { raw, lines })
+        Ok(Self { raw, lines_iter })
     }
+}
 
-    #[cfg(feature = "async")]
+/// Trait to iterate over lines of the kernel log buffer.
+#[cfg(feature = "sync")]
+impl Iterator for KMsgEntriesIter {
+    type Item = Result<Entry, RMesgError>;
+
+    /// This is a blocking call, and will use the calling thread to perform polling
+    /// NOT a thread-safe method either. It is suggested this method be always
+    /// blocked on to ensure no messages are missed.
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.lines_iter.next() {
+            None => None,
+            Some(Err(e)) => Some(Err(RMesgError::IOError(format!(
+                "Error reading next line from kernel log device file: {}",
+                e
+            )))),
+            Some(Ok(line)) => {
+                if self.raw {
+                    Some(Ok(Entry {
+                        facility: None,
+                        level: None,
+                        timestamp_from_system_start: None,
+                        sequence_num: None,
+                        message: line,
+                    }))
+                } else {
+                    Some(entry_from_line(&line).map_err(|e| e.into()))
+                }
+            }
+        }
+    }
+}
+
+/// While reading the kernel log buffer is very useful in and of itself (expecially when running the CLI),
+/// a lot more value is unlocked when it can be tailed line-by-line.
+///
+/// This struct provides the facilities to do that. It implements an iterator to easily iterate
+/// indefinitely over the lines.
+///
+/// Implements the tokio::stream::Stream trait
+///
+#[cfg(feature = "async")]
+pub struct KMsgEntriesStream {
+    raw: bool,
+
+    lines_stream: Pin<Box<tokioio::Lines<tokioio::BufReader<tokiofs::File>>>>,
+}
+
+#[cfg(feature = "async")]
+impl KMsgEntriesStream {
+    /// Create a new KMsgEntries with two specific options
+    /// `file_override`: When `Some`, overrides the path from where to read the kernel logs
+    /// `raw: bool` When set, does not parse the message and instead sets the entire log entry in the "message" field
     pub async fn with_options(
         file_override: Option<String>,
         raw: bool,
-    ) -> Result<KMsgEntries, RMesgError> {
+    ) -> Result<Self, RMesgError> {
         let path = file_override.unwrap_or_else(|| DEV_KMSG_PATH.to_owned());
 
         let file = match tokiofs::File::open(path.clone()).await {
@@ -92,79 +143,31 @@ impl KMsgEntries {
             }
         };
 
-        let lines = Box::pin(BufReader::new(file).lines());
+        let lines_stream = Box::pin(tokioio::BufReader::new(file).lines());
 
-        Ok(KMsgEntries { raw, lines })
-    }
-}
-
-/// Trait to iterate over lines of the kernel log buffer.
-#[cfg(not(feature = "async"))]
-impl Iterator for KMsgEntries {
-    type Item = Result<Entry, RMesgError>;
-
-    /// This is a blocking call, and will use the calling thread to perform polling
-    /// NOT a thread-safe method either. It is suggested this method be always
-    /// blocked on to ensure no messages are missed.
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.lines.next() {
-            None => None,
-            Some(Err(e)) => Some(Err(RMesgError::IOError(format!(
-                "Error reading next line from kernel log device file: {}",
-                e
-            )))),
-            Some(Ok(line)) => {
-                if self.raw {
-                    let entry = EntryStruct {
-                        facility: None,
-                        level: None,
-                        timestamp_from_system_start: None,
-                        sequence_num: None,
-                        message: line,
-                    };
-
-                    cfg_if::cfg_if! {
-                        if #[cfg(feature="ptr")] {
-                            Some(Ok(Box::new(entry)))
-                        } else {
-                            Some(Ok(entry))
-                        }
-                    }
-                } else {
-                    Some(entry_from_line(&line).map_err(|e| e.into()))
-                }
-            }
-        }
+        Ok(Self { raw, lines_stream })
     }
 }
 
 /// Trait to iterate over lines of the kernel log buffer.
 #[cfg(feature = "async")]
-impl Stream for KMsgEntries {
+impl Stream for KMsgEntriesStream {
     type Item = Result<Entry, RMesgError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.lines.as_mut().poll_next_line(cx) {
+        match self.lines_stream.as_mut().poll_next_line(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e.into()))),
             Poll::Ready(Ok(None)) => Poll::Ready(None),
             Poll::Ready(Ok(Some(line))) => {
                 let value = if self.raw {
-                    let entry = EntryStruct {
+                    Some(Ok(Entry {
                         facility: None,
                         level: None,
                         timestamp_from_system_start: None,
                         sequence_num: None,
                         message: line,
-                    };
-
-                    cfg_if::cfg_if! {
-                        if #[cfg(feature="ptr")] {
-                            Some(Ok(Box::new(entry)))
-                        } else {
-                            Some(Ok(entry))
-                        }
-                    }
+                    }))
                 } else {
                     Some(entry_from_line(&line).map_err(|e| e.into()))
                 };
@@ -285,21 +288,13 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
             (None, None, None, None, line.to_owned())
         };
 
-    let entry = EntryStruct {
+    Ok(Entry {
         facility,
         level,
         sequence_num,
         timestamp_from_system_start,
         message,
-    };
-
-    cfg_if::cfg_if! {
-        if #[cfg(feature="ptr")] {
-            Ok(Box::new(entry))
-        } else {
-            Ok(entry)
-        }
-    }
+    })
 }
 
 /**********************************************************************************/
@@ -319,7 +314,7 @@ mod test {
         assert!(!entries.unwrap().is_empty(), "Should have non-empty logs");
     }
 
-    #[cfg(not(feature = "async"))]
+    #[cfg(feature = "sync")]
     #[test]
     fn test_iterator() {
         // uncomment below if you want to be extra-sure
@@ -327,7 +322,7 @@ mod test {
         //assert!(enable_timestamp_result.is_ok());
 
         // Don't clear the buffer. Poll every second.
-        let iterator_result = KMsgEntries::with_options(None, false);
+        let iterator_result = KMsgEntriesIter::with_options(None, false);
         assert!(iterator_result.is_ok());
 
         let iterator = iterator_result.unwrap();

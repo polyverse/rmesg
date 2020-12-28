@@ -1,25 +1,18 @@
 name: Release
 
 on:
-  push:
-    # Publish `v1.2.3` tags as releases.
+  workflow_run:
+    workflows: ["Build Status"]
     tags:
       - v*
-
+    types:
+      - completed
 jobs:
   release:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v2
-
-      # Run tests before release
-      - name: Clippy before test
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t polyverse/rust-dev-env cargo clippy --release --all --features="async"
-
-      # Run tests before release
-      - name: Test before release
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --privileged --rm -t polyverse/rust-dev-env cargo test --release --all --features="async"
 
       - name: Build Release executable
         run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t polyverse/rust-dev-env cargo build --release --all --features="async"

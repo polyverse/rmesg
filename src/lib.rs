@@ -16,7 +16,7 @@ pub mod klogctl;
 /// KMsg Implementation (reads from the /dev/kmsg file)
 pub mod kmsgfile;
 
-#[cfg(not(feature = "async"))]
+#[cfg(feature = "sync")]
 use std::iter::Iterator;
 
 #[cfg(feature = "async")]
@@ -31,7 +31,7 @@ pub enum Backend {
     DevKMsg,
 }
 
-#[cfg(not(feature = "async"))]
+#[cfg(feature = "sync")]
 pub type EntriesIterator = Box<dyn Iterator<Item = Result<entry::Entry, error::RMesgError>>>;
 
 #[cfg(feature = "async")]
@@ -73,10 +73,10 @@ pub fn logs_raw(b: Backend, clear: bool) -> Result<String, error::RMesgError> {
     }
 }
 
-#[cfg(not(feature = "async"))]
+#[cfg(feature = "sync")]
 pub fn logs_iter(b: Backend, clear: bool, raw: bool) -> Result<EntriesIterator, error::RMesgError> {
     match b {
-        Backend::Default => match kmsgfile::KMsgEntries::with_options(None, raw) {
+        Backend::Default => match kmsgfile::KMsgEntriesIter::with_options(None, raw) {
             Ok(e) => Ok(Box::new(e)),
             Err(error::RMesgError::DevKMsgFileOpenError(s)) => {
                 eprintln!(
@@ -88,18 +88,20 @@ pub fn logs_iter(b: Backend, clear: bool, raw: bool) -> Result<EntriesIterator, 
             Err(e) => Err(e),
         },
         Backend::KLogCtl => Ok(Box::new(klog_entries_only_if_timestamp_enabled(clear)?)),
-        Backend::DevKMsg => Ok(Box::new(kmsgfile::KMsgEntries::with_options(None, raw)?)),
+        Backend::DevKMsg => Ok(Box::new(kmsgfile::KMsgEntriesIter::with_options(
+            None, raw,
+        )?)),
     }
 }
 
 #[cfg(feature = "async")]
-pub async fn logs_iter(
+pub async fn logs_stream(
     b: Backend,
     clear: bool,
     raw: bool,
 ) -> Result<EntriesStream, error::RMesgError> {
     match b {
-        Backend::Default => match kmsgfile::KMsgEntries::with_options(None, raw).await {
+        Backend::Default => match kmsgfile::KMsgEntriesStream::with_options(None, raw).await {
             Ok(e) => Ok(Box::pin(e)),
             Err(error::RMesgError::DevKMsgFileOpenError(s)) => {
                 eprintln!(
@@ -112,7 +114,7 @@ pub async fn logs_iter(
         },
         Backend::KLogCtl => Ok(Box::pin(klog_entries_only_if_timestamp_enabled(clear)?)),
         Backend::DevKMsg => Ok(Box::pin(
-            kmsgfile::KMsgEntries::with_options(None, raw).await?,
+            kmsgfile::KMsgEntriesStream::with_options(None, raw).await?,
         )),
     }
 }

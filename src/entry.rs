@@ -11,17 +11,9 @@ use schemars::JsonSchema;
 #[cfg(feature = "extra-traits")]
 use serde::Deserialize;
 
-#[cfg(not(feature = "ptr"))]
-pub type Entry = EntryStruct;
-
-#[cfg(feature = "ptr")]
-pub type Entry = BoxedEntryStruct;
-#[cfg(any(feature = "ptr", test))]
-pub type BoxedEntryStruct = Box<EntryStruct>;
-
 /// A parsed/structured entry from kernel log buffer
 #[derive(PartialEq, Debug, Clone)]
-pub struct EntryStruct {
+pub struct Entry {
     // Log facility
     pub facility: Option<LogFacility>,
 
@@ -38,7 +30,7 @@ pub struct EntryStruct {
     pub message: String,
 }
 
-impl EntryStruct {
+impl Entry {
     pub fn to_faclev(&self) -> Option<u8> {
         match (self.facility, self.level) {
             (Some(facility), Some(level)) => Some(((facility as u8) << 3) + (level as u8)),
@@ -90,7 +82,7 @@ impl EntryStruct {
     }
 }
 
-impl Display for EntryStruct {
+impl Display for Entry {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         let timestampstr = match self.timestamp_from_system_start {
             Some(ts) => format!("[{: >16.6}]", ts.as_secs_f64()),
@@ -144,16 +136,7 @@ pub enum LogFacility {
 
 /// Linux kmesg (kernel message buffer) Log Level.
 #[cfg_attr(feature = "extra-traits", derive(JsonSchema, Deserialize))]
-#[derive(
-    EnumString,
-    Debug,
-    PartialEq,
-    Display,
-    Copy,
-    Clone,
-    FromPrimitive,
-    Serialize,
-)]
+#[derive(EnumString, Debug, PartialEq, Display, Copy, Clone, FromPrimitive, Serialize)]
 pub enum LogLevel {
     #[strum(serialize = "emerg")]
     Emergency = 0,
@@ -207,21 +190,10 @@ impl Display for EntryParsingError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::mem;
-
-    #[test]
-    fn test_entry_5x_larger_than_box() {
-        // cost to move Entry
-        assert_eq!(72, mem::size_of::<EntryStruct>());
-        // vs ptr
-        assert_eq!(8, mem::size_of::<BoxedEntryStruct>());
-
-        assert!(mem::size_of::<EntryStruct>() >= mem::size_of::<BoxedEntryStruct>() * 5);
-    }
 
     #[test]
     fn test_serialize_to_klog() {
-        let entry_struct = EntryStruct {
+        let entry_struct = Entry {
             timestamp_from_system_start: Some(Duration::from_secs_f64(24241.325252)),
             facility: Some(LogFacility::Kern),
             level: Some(LogLevel::Info),
@@ -241,7 +213,7 @@ mod test {
 
     #[test]
     fn test_serialize_to_kmsg() {
-        let entry_struct = EntryStruct {
+        let entry_struct = Entry {
             timestamp_from_system_start: Some(Duration::from_secs_f64(24241.325252)),
             facility: Some(LogFacility::Kern),
             level: Some(LogLevel::Info),
@@ -261,7 +233,7 @@ mod test {
 
     #[test]
     fn test_display() {
-        let entry_struct = EntryStruct {
+        let entry_struct = Entry {
             timestamp_from_system_start: Some(Duration::from_secs_f64(24241.325252)),
             facility: Some(LogFacility::Kern),
             level: Some(LogLevel::Info),
