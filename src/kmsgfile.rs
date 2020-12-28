@@ -304,9 +304,6 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
 mod test {
     use super::*;
 
-    #[cfg(feature = "async")]
-    use futures::StreamExt;
-
     #[test]
     fn test_kmsg() {
         let entries = kmsg(None);
@@ -344,7 +341,7 @@ mod test {
         //assert!(enable_timestamp_result.is_ok());
 
         // Don't clear the buffer. Poll every second.
-        let stream_result = tokio_test::block_on(KMsgEntries::with_options(None, false));
+        let stream_result = tokio_test::block_on(KMsgEntriesStream::with_options(None, false));
         assert!(stream_result.is_ok());
 
         let mut stream = stream_result.unwrap();
