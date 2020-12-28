@@ -1,18 +1,28 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["Build Status"]
+  push:
+    # Publish `v1.2.3` tags as releases.
     tags:
       - v*
-    types:
-      - completed
+
 jobs:
   release:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v2
+
+      - name: Style (rustfmt)
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo fmt --all -- --check
+
+        # Allow this lint: -D clippy::field-reassign-with-default
+        # Due to this: https://github.com/GREsau/schemars/pull/65
+      - name: Lint (Clippy)
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo clippy --workspace --all-targets --all-features -- -D warnings -A clippy::field-reassign-with-default
+
+      - name: Test
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo test --workspace --all-targets --all-features
 
       - name: Build Release executable
         run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t polyverse/rust-dev-env cargo build --release --all --features="async"
