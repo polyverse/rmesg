@@ -56,3 +56,8 @@ tokio = { version = "1.0.1", features = ["rt", "fs", "io-util", "macros"], optio
 [dev-dependencies]
 tokio-test = "0.4.0"
 tokio-stream = { version = "0.1.0" }
+
+# Enable LTO for release (since it only builds in CI/CD and doesn't block day to day)
+[profile.release]
+lto = "fat"
+codegen-units = 1
