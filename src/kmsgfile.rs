@@ -336,21 +336,21 @@ mod test {
     }
 
     #[cfg(feature = "async")]
-    #[test]
-    fn test_stream() {
+    #[tokio::test]
+    async fn test_stream() {
         // uncomment below if you want to be extra-sure
         //let enable_timestamp_result = kernel_log_timestamps_enable(true);
         //assert!(enable_timestamp_result.is_ok());
 
         // Don't clear the buffer. Poll every second.
-        let stream_result = tokio_test::block_on(KMsgEntriesStream::with_options(None, false));
+        let stream_result = KMsgEntriesStream::with_options(None, false).await;
         assert!(stream_result.is_ok());
 
         let mut stream = stream_result.unwrap();
 
         // Read 10 lines and quit
         let mut count: u32 = 0;
-        while let Some(entry) = tokio_test::block_on(stream.next()) {
+        while let Some(entry) = stream.next().await {
             assert!(entry.is_ok());
             count += 1;
             if count > 10 {
