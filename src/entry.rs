@@ -1,15 +1,12 @@
 // Copyright (c) 2019 Polyverse Corporation
 
-use serde::Serialize;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::time::Duration;
 use strum_macros::EnumString;
 
-#[cfg(feature = "extra-traits")]
-use schemars::JsonSchema;
-#[cfg(feature = "extra-traits")]
-use serde::Deserialize;
+#[cfg(feature="extra-traits")]
+use serde::{Serialize, Deserialize};
 
 /// A parsed/structured entry from kernel log buffer
 #[derive(PartialEq, Debug, Clone)]
@@ -94,8 +91,8 @@ impl Display for Entry {
 }
 
 /// Linux kmesg (kernel message buffer) Log Facility.
-#[cfg_attr(feature = "extra-traits", derive(JsonSchema, Deserialize))]
-#[derive(EnumString, Debug, PartialEq, Display, Copy, Clone, FromPrimitive, Serialize)]
+#[cfg_attr(feature = "extra-traits", derive(Serialize, Deserialize))]
+#[derive(EnumString, Debug, PartialEq, Display, Copy, Clone, FromPrimitive)]
 pub enum LogFacility {
     #[strum(serialize = "kern")]
     Kern = 0,
@@ -135,8 +132,8 @@ pub enum LogFacility {
 }
 
 /// Linux kmesg (kernel message buffer) Log Level.
-#[cfg_attr(feature = "extra-traits", derive(JsonSchema, Deserialize))]
-#[derive(EnumString, Debug, PartialEq, Display, Copy, Clone, FromPrimitive, Serialize)]
+#[cfg_attr(feature = "extra-traits", derive(Serialize, Deserialize))]
+#[derive(EnumString, Debug, PartialEq, Display, Copy, Clone, FromPrimitive)]
 pub enum LogLevel {
     #[strum(serialize = "emerg")]
     Emergency = 0,
