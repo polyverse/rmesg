@@ -1,6 +1,6 @@
 [package]
 name = "rmesg"
-version = "1.0.7"
+version = "1.0.8"
 authors = ["Archis Gore <archis@polyverse.com>"]
 edition = "2018"
 license-file = "LICENSE"
