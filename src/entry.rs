@@ -5,8 +5,8 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::time::Duration;
 use strum_macros::EnumString;
 
-#[cfg(feature="extra-traits")]
-use serde::{Serialize, Deserialize};
+#[cfg(feature = "extra-traits")]
+use serde::{Deserialize, Serialize};
 
 /// A parsed/structured entry from kernel log buffer
 #[derive(PartialEq, Debug, Clone)]
