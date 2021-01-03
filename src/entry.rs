@@ -1,9 +1,10 @@
 // Copyright (c) 2019 Polyverse Corporation
 
+use num_derive::FromPrimitive;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::time::Duration;
-use strum_macros::EnumString;
+use strum_macros::{Display, EnumString};
 
 #[cfg(feature = "extra-traits")]
 use serde::{Deserialize, Serialize};

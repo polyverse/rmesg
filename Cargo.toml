@@ -26,7 +26,7 @@ default = ["sync"]
 # packages, but they are strictly optional. Note that `session` is not a package
 # but rather another feature listed in this manifest.
 sync = []
-async = ["futures", "futures-util", "tokio"]
+async = ["futures", "futures-util", "tokio", "pin-project"]
 extra-traits = ["serde"]
 
 [dependencies]
@@ -51,11 +51,19 @@ serde = { version = "1.0.118", features = ["derive"], optional = true }
 futures = { version = "0.3.8", optional = true }
 futures-util = { version = "0.3.8", optional = true }
 tokio = { version = "1.0.1", features = ["rt", "fs", "io-util", "macros"], optional = true }
+pin-project = {version = "1.0.2", optional = true }
 
 [dev-dependencies]
 tokio-stream = { version = "0.1.0" }
 
-# Enable LTO for release (since it only builds in CI/CD and doesn't block day to day)
+[profile.dev]
+# We don't need stack unwinding in dev either - can be manually enabled
+panic = 'abort'
+
 [profile.release]
+# We don't need stack unwinding in releases
+panic = 'abort'
+# Enable LTO for release (since it only builds in Travis and doesn't block day to day)
 lto = "fat"
+# One code-gen unit so we get a highly optimized binary
 codegen-units = 1

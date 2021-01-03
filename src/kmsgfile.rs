@@ -11,6 +11,7 @@ use crate::entry::{Entry, EntryParsingError};
 ///
 use crate::error::RMesgError;
 
+use lazy_static::lazy_static;
 use nonblock::NonBlockingReader;
 use regex::Regex;
 use std::fs as stdfs;

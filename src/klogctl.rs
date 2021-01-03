@@ -12,11 +12,12 @@ use crate::entry::{Entry, EntryParsingError};
 use crate::error::RMesgError;
 
 use errno::errno;
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::convert::TryFrom;
-use std::fmt::Display;
 use std::fs;
 use std::time::{Duration, SystemTime};
+use strum_macros::Display;
 
 /// suggest polling every ten seconds
 pub const SUGGESTED_POLL_INTERVAL: std::time::Duration = Duration::from_secs(10);
