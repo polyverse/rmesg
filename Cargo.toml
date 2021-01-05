@@ -1,6 +1,6 @@
 [package]
 name = "rmesg"
-version = "1.0.9"
+version = "1.0.10"
 authors = ["Archis Gore <archis@polyverse.com>"]
 edition = "2018"
 license-file = "LICENSE"
@@ -21,7 +21,7 @@ name = "rmesg"
 path = "src/lib.rs"
 
 [features]
-default = ["sync"]
+default = ["async"]
 # The default set of optional packages. Most people will want to use these
 # packages, but they are strictly optional. Note that `session` is not a package
 # but rather another feature listed in this manifest.
