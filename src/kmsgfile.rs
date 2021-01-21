@@ -144,7 +144,20 @@ impl KMsgEntriesStream {
             }
         };
 
-        let lines_stream = Box::pin(tokioio::BufReader::new(file).lines());
+        // try to read from file
+        let mut lines_stream = Box::pin(tokioio::BufReader::new(file).lines());
+
+        //read a line
+        if let Err(e) = lines_stream.next_line().await {
+            return Err(RMesgError::DevKMsgFileOpenError(format!(
+                "Unable to read from file {}: {}",
+                path, e
+            )));
+        }
+
+        // create a new lines_stream with a new file
+        let lines_stream =
+            Box::pin(tokioio::BufReader::new(tokiofs::File::open(path.clone()).await?).lines());
 
         Ok(Self { raw, lines_stream })
     }
@@ -240,13 +253,13 @@ pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
     lazy_static! {
         static ref RE_ENTRY_WITH_TIMESTAMP: Regex = Regex::new(
             r"(?x)^
-            [[:space:]]*(?P<faclevstr>[[:digit:]]*)[[:space:]]*,
-            # Sequence is a 64-bit integer: https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
-            [[:space:]]*(?P<sequencenum>[[:digit:]]*)[[:space:]]*,
-            [[:space:]]*(?P<timestampstr>[[:digit:]]*)[[:space:]]*,
-            # Ignore everything until the semi-colon and then the semicolon
-            [[^;]]*;
-            (?P<message>.*)$"
+                [[:space:]]*(?P<faclevstr>[[:digit:]]*)[[:space:]]*,
+                # Sequence is a 64-bit integer: https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
+                [[:space:]]*(?P<sequencenum>[[:digit:]]*)[[:space:]]*,
+                [[:space:]]*(?P<timestampstr>[[:digit:]]*)[[:space:]]*,
+                # Ignore everything until the semi-colon and then the semicolon
+                [[^;]]*;
+                (?P<message>.*)$"
         )
         .unwrap();
     }
@@ -345,7 +358,7 @@ mod test {
 
         // Don't clear the buffer. Poll every second.
         let stream_result = KMsgEntriesStream::with_options(None, false).await;
-        assert!(stream_result.is_ok());
+        //assert!(stream_result.is_ok());
 
         let mut stream = stream_result.unwrap();
 
