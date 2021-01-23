@@ -9,7 +9,7 @@ A 'dmesg' implementation in Rust
 ### Obtain the latest release binary
 
 ```.bash
-curl https://github.com/polyverse/rmesg/releases/latest/download/rmesg
+wget https://github.com/polyverse/rmesg/releases/latest/download/rmesg
 chmod a+x ./rmesg
 # Optionally move to a stable location
 mv ./rmesg /usr/local/bin
