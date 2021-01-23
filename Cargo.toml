@@ -67,3 +67,6 @@ panic = 'abort'
 lto = "fat"
 # One code-gen unit so we get a highly optimized binary
 codegen-units = 1
+
+[package.metadata.cargo-all-features]
+skip_optional_dependencies = true
