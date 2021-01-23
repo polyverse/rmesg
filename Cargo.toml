@@ -50,7 +50,7 @@ serde = { version = "1.0.120", features = ["derive"], optional = true }
 # Optional - only enabled through the "async" feature
 futures = { version = "0.3.12", optional = true }
 futures-util = { version = "0.3.12", optional = true }
-tokio = { version = "1.0.2", features = ["rt", "fs", "io-util", "macros"], optional = true }
+tokio = { version = "1.0.2", features = ["rt", "fs", "io-util", "macros", "time"], optional = true }
 pin-project = {version = "1.0.4", optional = true }
 
 [dev-dependencies]
