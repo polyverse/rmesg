@@ -30,7 +30,7 @@ async = ["futures", "futures-util", "tokio", "pin-project"]
 extra-traits = ["serde"]
 
 [dependencies]
-libc = "0.2.81"
+libc = "0.2.82"
 cfg-if = "1.0.0"
 enum-display-derive = "0.1.0"
 errno = "0.2.7"
@@ -45,16 +45,16 @@ num-derive = "0.3.3"
 nonblock = "0.1.0"
 
 # Optional - on extra-traits
-serde = { version = "1.0.118", features = ["derive"], optional = true }
+serde = { version = "1.0.120", features = ["derive"], optional = true }
 
 # Optional - only enabled through the "async" feature
-futures = { version = "0.3.8", optional = true }
-futures-util = { version = "0.3.8", optional = true }
-tokio = { version = "1.0.1", features = ["rt", "fs", "io-util", "macros"], optional = true }
-pin-project = {version = "1.0.2", optional = true }
+futures = { version = "0.3.12", optional = true }
+futures-util = { version = "0.3.12", optional = true }
+tokio = { version = "1.0.2", features = ["rt", "fs", "io-util", "macros"], optional = true }
+pin-project = {version = "1.0.4", optional = true }
 
 [dev-dependencies]
-tokio-stream = { version = "0.1.0" }
+tokio-stream = { version = "0.1.2" }
 
 [profile.dev]
 # We don't need stack unwinding in dev either - can be manually enabled

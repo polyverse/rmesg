@@ -24,6 +24,9 @@ jobs:
       - name: Test
         run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo test
 
+      - name: Test cargo install
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo install --path . -f
+
       - name: Build Release executable
         run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t polyverse/rust-dev-env cargo build --release
 
