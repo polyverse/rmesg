@@ -87,7 +87,7 @@ impl Display for Entry {
             None => "".to_owned(),
         };
 
-        write!(f, "{}{}", timestampstr, self.message)
+        write!(f, "{} {}", timestampstr, self.message)
     }
 }
 
