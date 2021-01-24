@@ -238,7 +238,7 @@ mod test {
             sequence_num: Some(15),
             message: "Test message".to_owned(),
         };
-        let expected_serialization = "[    24241.325252]Test message";
+        let expected_serialization = "[    24241.325252] Test message";
 
         let boxed_entry_struct = Box::new(entry_struct.clone());
 
