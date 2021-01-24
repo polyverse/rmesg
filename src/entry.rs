@@ -41,6 +41,9 @@ impl Entry {
     // OR
     // <5>[   233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15
     pub fn to_klog_str(&self) -> String {
+        // capacity is 16+6 (for timestamp) + 2 (for <>) + 1 for facllev + message
+        let retstr = String::with_capacity(27 + self.message.len());
+
         let maybe_faclev = self.to_faclev();
 
         let timestampstr = match self.timestamp_from_system_start {
@@ -247,5 +250,19 @@ mod test {
 
         let printed_boxed_entry_struct = format!("{}", boxed_entry_struct);
         assert_eq!(printed_boxed_entry_struct, expected_serialization);
+    }
+
+    #[bench]
+    fn bench_entry_display(b: &mut Bencher) {
+
+        b.iter(|| {
+            let entry_struct = Entry {
+                timestamp_from_system_start: Some(Duration::from_secs_f64(24241.325252)),
+                facility: Some(LogFacility::Kern),
+                level: Some(LogLevel::Info),
+                sequence_num: Some(10),
+                message: "Test message".to_owned(),
+            }
+        });
     }
 }
