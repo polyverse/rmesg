@@ -55,6 +55,8 @@ pin-project = {version = "1.0.4", optional = true }
 
 [dev-dependencies]
 tokio-stream = { version = "0.1.2" }
+rand = "0.8.2"
+criterion = "0.3"
 
 [profile.dev]
 # We don't need stack unwinding in dev either - can be manually enabled
@@ -70,3 +72,7 @@ codegen-units = 1
 
 [package.metadata.cargo-all-features]
 skip_optional_dependencies = true
+
+[[bench]]
+name = "benchmark"
+harness = false
