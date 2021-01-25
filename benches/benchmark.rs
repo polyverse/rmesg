@@ -126,49 +126,58 @@ pub fn benchmark(c: &mut Criterion) {
 
     c.bench_function("display_entry", |b| {
         b.iter(|| {
-            black_box(display_entry());
+            display_entry();
+            black_box(());
         })
     });
     c.bench_function("entry_to_kmsg_str", |b| {
         b.iter(|| {
-            black_box(entry_to_kmsg_str());
+            entry_to_kmsg_str();
+            black_box(());
         })
     });
     c.bench_function("entry_to_klog_str", |b| {
         b.iter(|| {
-            black_box(entry_to_klog_str());
+            entry_to_klog_str();
+            black_box(());
         })
     });
 
     c.bench_function("kmsg_read", |b| {
         b.iter(|| {
-            black_box(kmsg_read());
+            kmsg_read();
+            black_box(());
         })
     });
     c.bench_function("kmsg_iter_read", |b| {
         b.iter(|| {
-            black_box(kmsg_iter_read());
+            kmsg_iter_read();
+            black_box(());
         })
     });
     c.bench_function("kmsg_stream_read", |b| {
         b.to_async(&rt).iter(|| async {
-            black_box(kmsg_stream_read().await);
+            kmsg_stream_read().await;
+            black_box(());
         });
     });
 
     c.bench_function("klog_read", |b| {
         b.iter(|| {
-            black_box(klog_read());
+            klog_read();
+            black_box(());
         })
     });
     c.bench_function("klog_iter_read", |b| {
         b.iter(|| {
-            black_box(klog_iter_read());
+            klog_iter_read();
+            black_box(());
         })
     });
     c.bench_function("klog_stream_read", |b| {
         b.to_async(&rt).iter(|| async {
-            black_box(klog_stream_read().await);
+            klog_stream_read().await;
+            black_box(());
         });
     });
 }
