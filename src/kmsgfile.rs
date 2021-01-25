@@ -262,10 +262,6 @@ pub fn kmsg(file_override: Option<String>) -> Result<Vec<Entry>, RMesgError> {
 // 6,2,0,-;x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
 // 6,3,0,-,more,deets;x86/fpu: Supporting XSAVE; feature 0x002: 'SSE registers'
 pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
-    if line.trim() == "" {
-        return Err(EntryParsingError::EmptyLine);
-    }
-
     if let Some(kmsgparts) = RE_ENTRY_WITH_TIMESTAMP.captures(line) {
         let (facility, level) = match kmsgparts.name("faclevstr") {
             Some(faclevstr) => common::parse_favlecstr(faclevstr.as_str(), line)?,

@@ -170,7 +170,6 @@ pub enum LogLevel {
 pub enum EntryParsingError {
     Completed,
     EventTooOld,
-    EmptyLine,
     Generic(String),
 }
 impl Error for EntryParsingError {}
@@ -183,8 +182,7 @@ impl Display for EntryParsingError {
                 Self::Completed => "Completed Parsing",
                 Self::EventTooOld =>
                     "Event too old due to timestamp or sequence number (we've parsed newer messages than these)",
-                    Self::EmptyLine => "Empty line",
-                    Self::Generic(s) => s,
+                Self::Generic(s) => s,
             }
         )
     }
