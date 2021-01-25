@@ -15,5 +15,5 @@ echo "Timing dmesg runs..."
 time runs "dmesg"
 
 echo "Timing rmesg runs..."
-time runs "rmesg"
+time runs "./rmesg -b klogctl"
 
