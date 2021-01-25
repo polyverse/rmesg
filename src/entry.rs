@@ -2,7 +2,7 @@
 
 use num_derive::FromPrimitive;
 use std::error::Error;
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::fmt::{Display, Error as FmtError, Formatter, Result as FmtResult, Write};
 use std::time::Duration;
 use strum_macros::{Display, EnumString};
 
@@ -40,21 +40,22 @@ impl Entry {
     // <5>a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15
     // OR
     // <5>[   233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15
-    pub fn to_klog_str(&self) -> String {
-        // capacity is 16+6 (for timestamp) + 2 (for <>) + 1 for facllev + message
-        //let retstr = String::with_capacity(27 + self.message.len());
+    pub fn to_klog_str(&self) -> Result<String, FmtError> {
+        if let Some(faclev) = self.to_faclev() {
+            // capacity is 16+6 (for timestamp) + 2 (for <>) + 1 for facllev + message
+            let mut retstr = String::with_capacity(27 + self.message.len());
 
-        let maybe_faclev = self.to_faclev();
+            write!(retstr, "<{}>", faclev)?;
 
-        let timestampstr = match self.timestamp_from_system_start {
-            Some(ts) => format!("[{: >16.6}]", ts.as_secs_f64()),
-            None => "".to_owned(),
-        };
+            if let Some(ts) = self.timestamp_from_system_start {
+                write!(retstr, "[{: >16.6}]", ts.as_secs_f64())?;
+            }
 
-        if let Some(faclev) = maybe_faclev {
-            format!("<{}>{}{}", faclev, timestampstr, self.message)
+            write!(retstr, "{}", self.message)?;
+
+            Ok(retstr)
         } else {
-            self.message.to_string()
+            Ok(self.message.to_owned())
         }
     }
 
@@ -62,23 +63,25 @@ impl Entry {
     // 6,1,0,-;Command, line: BOOT_IMAGE=/boot/kernel console=ttyS0 console=ttyS1 page_poison=1 vsyscall=emulate panic=1 root=/dev/sr0 text
     //  LINE2=foobar
     //  LINE 3 = foobar ; with semicolon
-    pub fn to_kmsg_str(&self) -> String {
-        let maybe_faclev = self.to_faclev();
+    pub fn to_kmsg_str(&self) -> Result<String, FmtError> {
+        if let Some(faclev) = self.to_faclev() {
+            // capacity is 12 (for timestamp) + 5 (for punctuations) + 1 for facllev + message
+            let mut retstr = String::with_capacity(18 + self.message.len());
 
-        let sequence_num = self.sequence_num.unwrap_or(0);
+            let sequence_num = self.sequence_num.unwrap_or(0);
+            write!(retstr, "{},{},", faclev, sequence_num)?;
 
-        let timestampstr = match self.timestamp_from_system_start {
-            Some(ts) => format!("{}", ts.as_micros()),
-            None => "0".to_owned(),
-        };
+            if let Some(ts) = self.timestamp_from_system_start {
+                write!(retstr, "{},-;", ts.as_micros())?;
+            } else {
+                retstr.push_str("0,-;");
+            }
 
-        if let Some(faclev) = maybe_faclev {
-            format!(
-                "{},{},{},-;{}",
-                faclev, sequence_num, timestampstr, self.message
-            )
+            write!(retstr, "{}", self.message)?;
+
+            Ok(retstr)
         } else {
-            self.message.to_string()
+            Ok(self.message.to_string())
         }
     }
 }
@@ -204,10 +207,10 @@ mod tests {
 
         let boxed_entry_struct = Box::new(entry_struct.clone());
 
-        let printed_entry_struct = entry_struct.to_klog_str();
+        let printed_entry_struct = entry_struct.to_klog_str().unwrap();
         assert_eq!(printed_entry_struct, expected_serialization);
 
-        let printed_boxed_entry_struct = boxed_entry_struct.to_klog_str();
+        let printed_boxed_entry_struct = boxed_entry_struct.to_klog_str().unwrap();
         assert_eq!(printed_boxed_entry_struct, expected_serialization);
     }
 
@@ -224,10 +227,10 @@ mod tests {
 
         let boxed_entry_struct = Box::new(entry_struct.clone());
 
-        let printed_entry_struct = entry_struct.to_kmsg_str();
+        let printed_entry_struct = entry_struct.to_kmsg_str().unwrap();
         assert_eq!(printed_entry_struct, expected_serialization);
 
-        let printed_boxed_entry_struct = boxed_entry_struct.to_kmsg_str();
+        let printed_boxed_entry_struct = boxed_entry_struct.to_kmsg_str().unwrap();
         assert_eq!(printed_boxed_entry_struct, expected_serialization);
     }
 
