@@ -56,7 +56,7 @@ pin-project = {version = "1.0.4", optional = true }
 [dev-dependencies]
 tokio-stream = { version = "0.1.2" }
 rand = "0.8.2"
-criterion = "0.3"
+criterion = { version = "0.3", features = ["async_tokio"]}
 
 [profile.dev]
 # We don't need stack unwinding in dev either - can be manually enabled
@@ -76,3 +76,4 @@ skip_optional_dependencies = true
 [[bench]]
 name = "benchmark"
 harness = false
+required-features = ["sync", "async"]

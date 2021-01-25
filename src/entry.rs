@@ -42,8 +42,8 @@ impl Entry {
     // <5>[   233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15
     pub fn to_klog_str(&self) -> Result<String, FmtError> {
         if let Some(faclev) = self.to_faclev() {
-            // capacity is 16+6 (for timestamp) + 2 (for <>) + 1 for facllev + message
-            let mut retstr = String::with_capacity(27 + self.message.len());
+            // +6 for buffer + capacity is 16+6 (for timestamp) + 2 (for []) + 2 (for <>) + 1 for facllev + message
+            let mut retstr = String::with_capacity(35 + self.message.len());
 
             write!(retstr, "<{}>", faclev)?;
 
@@ -65,8 +65,8 @@ impl Entry {
     //  LINE 3 = foobar ; with semicolon
     pub fn to_kmsg_str(&self) -> Result<String, FmtError> {
         if let Some(faclev) = self.to_faclev() {
-            // capacity is 12 (for timestamp) + 5 (for punctuations) + 1 for facllev + message
-            let mut retstr = String::with_capacity(18 + self.message.len());
+            // +7 for buffer + capacity is 12 (for timestamp) + 5 (for punctuations) + 1 for facllev + message
+            let mut retstr = String::with_capacity(25 + self.message.len());
 
             let sequence_num = self.sequence_num.unwrap_or(0);
             write!(retstr, "{},{},", faclev, sequence_num)?;

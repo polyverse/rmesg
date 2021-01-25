@@ -37,6 +37,20 @@ use tokio::io as tokioio;
 use tokio::io::AsyncBufReadExt;
 
 const DEV_KMSG_PATH: &str = "/dev/kmsg";
+lazy_static! {
+    static ref RE_ENTRY_WITH_TIMESTAMP: Regex = Regex::new(
+        r"(?x)^
+            [[:space:]]*(?P<faclevstr>[[:digit:]]*)[[:space:]]*,
+            # Sequence is a 64-bit integer: https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
+            [[:space:]]*(?P<sequencenum>[[:digit:]]*)[[:space:]]*,
+            [[:space:]]*(?P<timestampstr>[[:digit:]]*)[[:space:]]*,
+            # Ignore everything until the semi-colon and then the semicolon
+            [[^;]]*;
+            (?P<message>.*)
+            $"
+    )
+    .unwrap();
+}
 
 /// While reading the kernel log buffer is very useful in and of itself (expecially when running the CLI),
 /// a lot more value is unlocked when it can be tailed line-by-line.
@@ -58,7 +72,7 @@ impl KMsgEntriesIter {
     /// `file_override`: When `Some`, overrides the path from where to read the kernel logs
     /// `raw: bool` When set, does not parse the message and instead sets the entire log entry in the "message" field
     pub fn with_options(file_override: Option<String>, raw: bool) -> Result<Self, RMesgError> {
-        let path = file_override.unwrap_or_else(|| DEV_KMSG_PATH.to_owned());
+        let path = file_override.as_deref().unwrap_or(DEV_KMSG_PATH);
 
         let file = match stdfs::File::open(path.clone()) {
             Ok(fc) => fc,
@@ -132,9 +146,9 @@ impl KMsgEntriesStream {
         file_override: Option<String>,
         raw: bool,
     ) -> Result<Self, RMesgError> {
-        let path = file_override.unwrap_or_else(|| DEV_KMSG_PATH.to_owned());
+        let path = file_override.as_deref().unwrap_or(DEV_KMSG_PATH);
 
-        let file = match tokiofs::File::open(path.clone()).await {
+        let file = match tokiofs::File::open(path).await {
             Ok(fc) => fc,
             Err(e) => {
                 return Err(RMesgError::DevKMsgFileOpenError(format!(
@@ -157,7 +171,7 @@ impl KMsgEntriesStream {
 
         // create a new lines_stream with a new file
         let lines_stream =
-            Box::pin(tokioio::BufReader::new(tokiofs::File::open(path.clone()).await?).lines());
+            Box::pin(tokioio::BufReader::new(tokiofs::File::open(path).await?).lines());
 
         Ok(Self { raw, lines_stream })
     }
@@ -193,9 +207,9 @@ impl Stream for KMsgEntriesStream {
 }
 
 pub fn kmsg_raw(file_override: Option<String>) -> Result<String, RMesgError> {
-    let path = file_override.unwrap_or_else(|| DEV_KMSG_PATH.to_owned());
+    let path = file_override.as_deref().unwrap_or(DEV_KMSG_PATH);
 
-    let file = match stdfs::File::open(path.clone()) {
+    let file = match stdfs::File::open(path) {
         Ok(fc) => fc,
         Err(e) => {
             return Err(RMesgError::DevKMsgFileOpenError(format!(
@@ -231,14 +245,12 @@ pub fn kmsg_raw(file_override: Option<String>) -> Result<String, RMesgError> {
 ///
 pub fn kmsg(file_override: Option<String>) -> Result<Vec<Entry>, RMesgError> {
     let file_contents = kmsg_raw(file_override)?;
+    let entry_results: Result<Vec<Entry>, EntryParsingError> = file_contents
+        .lines()
+        .map(|line| entry_from_line(line))
+        .collect();
 
-    let lines = file_contents.as_str().lines();
-
-    let mut entries = Vec::<Entry>::new();
-    for line in lines {
-        entries.push(entry_from_line(line)?)
-    }
-    Ok(entries)
+    Ok(entry_results?)
 }
 
 // Message spec: https://github.com/torvalds/linux/blob/master/Documentation/ABI/testing/dev-kmsg
@@ -250,70 +262,48 @@ pub fn kmsg(file_override: Option<String>) -> Result<Vec<Entry>, RMesgError> {
 // 6,2,0,-;x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
 // 6,3,0,-,more,deets;x86/fpu: Supporting XSAVE; feature 0x002: 'SSE registers'
 pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
-    lazy_static! {
-        static ref RE_ENTRY_WITH_TIMESTAMP: Regex = Regex::new(
-            r"(?x)^
-                [[:space:]]*(?P<faclevstr>[[:digit:]]*)[[:space:]]*,
-                # Sequence is a 64-bit integer: https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
-                [[:space:]]*(?P<sequencenum>[[:digit:]]*)[[:space:]]*,
-                [[:space:]]*(?P<timestampstr>[[:digit:]]*)[[:space:]]*,
-                # Ignore everything until the semi-colon and then the semicolon
-                [[^;]]*;
-                (?P<message>.*)$"
-        )
-        .unwrap();
-    }
-
     if line.trim() == "" {
         return Err(EntryParsingError::EmptyLine);
     }
 
-    let (facility, level, sequence_num, timestamp_from_system_start, message) =
-        if let Some(kmsgparts) = RE_ENTRY_WITH_TIMESTAMP.captures(&line) {
-            let (facility, level) = match kmsgparts.name("faclevstr") {
-                Some(faclevstr) => common::parse_favlecstr(faclevstr.as_str(), line)?,
-                None => (None, None),
-            };
-
-            let sequence_num = match kmsgparts.name("sequencenum") {
-                Some(sequencestr) => {
-                    Some(common::parse_fragment::<usize>(sequencestr.as_str(), line)?)
-                }
-                None => None,
-            };
-
-            let timestamp_from_system_start = match kmsgparts.name("timestampstr") {
-                Some(timestampstr) => {
-                    common::parse_timestamp_microsecs(timestampstr.as_str(), line)?
-                }
-                None => None,
-            };
-
-            let message = kmsgparts["message"].to_owned();
-
-            (
-                facility,
-                level,
-                sequence_num,
-                timestamp_from_system_start,
-                message,
-            )
-        } else {
-            (None, None, None, None, line.to_owned())
+    if let Some(kmsgparts) = RE_ENTRY_WITH_TIMESTAMP.captures(line) {
+        let (facility, level) = match kmsgparts.name("faclevstr") {
+            Some(faclevstr) => common::parse_favlecstr(faclevstr.as_str(), line)?,
+            None => (None, None),
         };
 
-    Ok(Entry {
-        facility,
-        level,
-        sequence_num,
-        timestamp_from_system_start,
-        message,
-    })
+        let sequence_num = match kmsgparts.name("sequencenum") {
+            Some(sequencestr) => Some(common::parse_fragment::<usize>(sequencestr.as_str(), line)?),
+            None => None,
+        };
+
+        let timestamp_from_system_start = match kmsgparts.name("timestampstr") {
+            Some(timestampstr) => common::parse_timestamp_microsecs(timestampstr.as_str(), line)?,
+            None => None,
+        };
+
+        let message = kmsgparts["message"].to_owned();
+
+        Ok(Entry {
+            facility,
+            level,
+            sequence_num,
+            timestamp_from_system_start,
+            message,
+        })
+    } else {
+        Ok(Entry {
+            facility: None,
+            level: None,
+            sequence_num: None,
+            timestamp_from_system_start: None,
+            message: line.to_owned(),
+        })
+    }
 }
 
 /**********************************************************************************/
 // Tests! Tests! Tests!
-
 #[cfg(all(test, target_os = "linux"))]
 mod test {
     use super::*;
@@ -378,13 +368,13 @@ mod test {
         let line1 = " LINE2=foobar";
         let e1r = entry_from_line(line1);
         assert!(e1r.is_ok());
-        let line1again = e1r.unwrap().to_kmsg_str();
+        let line1again = e1r.unwrap().to_kmsg_str().unwrap();
         assert_eq!(line1, line1again);
 
         let line2 = "6,779,91650777797,-;docker0: port 2(veth98d5024) entered disabled state";
         let e2r = entry_from_line(line2);
         assert!(e2r.is_ok());
-        let line2again = e2r.unwrap().to_kmsg_str();
+        let line2again = e2r.unwrap().to_kmsg_str().unwrap();
         assert_eq!(line2, line2again);
     }
 }

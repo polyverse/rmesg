@@ -19,9 +19,6 @@ use std::fs;
 use std::time::{Duration, SystemTime};
 use strum_macros::Display;
 
-/// suggest polling every ten seconds
-pub const SUGGESTED_POLL_INTERVAL: std::time::Duration = Duration::from_secs(10);
-
 #[cfg(feature = "async")]
 use core::future::Future;
 #[cfg(feature = "async")]
@@ -77,6 +74,20 @@ pub type SignedInt = libc::c_int;
 
 /// The path under /proc where the parameter to set (or unset) logging a timestamp resides
 pub const SYS_MODULE_PRINTK_PARAMETERS_TIME: &str = "/sys/module/printk/parameters/time";
+
+/// suggest polling every ten seconds
+pub const SUGGESTED_POLL_INTERVAL: std::time::Duration = Duration::from_secs(10);
+
+lazy_static! {
+    static ref RE_ENTRY_WITH_TIMESTAMP: Regex = Regex::new(
+        r"(?x)^
+        [[:space:]]*<(?P<faclevstr>[[:digit:]]*)>
+        [[:space:]]*([\[][[:space:]]*(?P<timestampstr>[[:digit:]]*\.[[:digit:]]*)[\]])?
+        (?P<message>.*)
+        $"
+    )
+    .unwrap();
+}
 
 /// While reading the kernel log buffer is very useful in and of itself (expecially when running the CLI),
 /// a lot more value is unlocked when it can be tailed line-by-line.
@@ -315,14 +326,7 @@ pub fn klog_raw(clear: bool) -> Result<String, RMesgError> {
 ///
 pub fn klog(clear: bool) -> Result<Vec<Entry>, RMesgError> {
     let all_lines = klog_raw(clear)?;
-
-    let lines = all_lines.as_str().lines();
-    let mut entries = Vec::<Entry>::new();
-
-    for line in lines {
-        entries.push(entry_from_line(line)?)
-    }
-    Ok(entries)
+    Ok(entries_from_lines(&all_lines)?)
 }
 
 /// This function checks whether or not timestamps are enabled in the Linux Kernel log entries.
@@ -349,47 +353,49 @@ pub fn klog_timestamps_enable(desired: bool) -> Result<(), RMesgError> {
 // <5>a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15
 // OR
 // <5>[   233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15
-pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
-    lazy_static! {
-        static ref RE_ENTRY_WITH_TIMESTAMP: Regex = Regex::new(
-            r"(?x)^
-            [[:space:]]*<(?P<faclevstr>[[:digit:]]*)>
-            [[:space:]]*([\[][[:space:]]*(?P<timestampstr>[[:digit:]]*\.[[:digit:]]*)[\]])?
-            (?P<message>.*)$"
-        )
-        .unwrap();
-    }
-
-    if line.trim() == "" {
+pub fn entries_from_lines(all_lines: &str) -> Result<Vec<Entry>, EntryParsingError> {
+    if all_lines.trim() == "" {
         return Err(EntryParsingError::EmptyLine);
     }
 
-    let (facility, level, timestamp_from_system_start, message) =
-        if let Some(klogparts) = RE_ENTRY_WITH_TIMESTAMP.captures(&line) {
-            let (facility, level) = match klogparts.name("faclevstr") {
-                Some(faclevstr) => common::parse_favlecstr(faclevstr.as_str(), line)?,
-                None => (None, None),
-            };
+    let entry_results: Result<Vec<Entry>, EntryParsingError> = all_lines
+        .lines()
+        .map(|line| entry_from_line(line))
+        .collect();
 
-            let timestamp_from_system_start = match klogparts.name("timestampstr") {
-                Some(timestampstr) => common::parse_timestamp_secs(timestampstr.as_str(), line)?,
-                None => None,
-            };
+    Ok(entry_results?)
+}
 
-            let message = klogparts["message"].to_owned();
-
-            (facility, level, timestamp_from_system_start, message)
-        } else {
-            (None, None, None, line.to_owned())
+pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
+    if let Some(klogparts) = RE_ENTRY_WITH_TIMESTAMP.captures(line) {
+        let (facility, level) = match klogparts.name("faclevstr") {
+            Some(faclevstr) => common::parse_favlecstr(faclevstr.as_str(), line)?,
+            None => (None, None),
         };
 
-    Ok(Entry {
-        facility,
-        level,
-        sequence_num: None,
-        timestamp_from_system_start,
-        message,
-    })
+        let timestamp_from_system_start = match klogparts.name("timestampstr") {
+            Some(timestampstr) => common::parse_timestamp_secs(timestampstr.as_str(), line)?,
+            None => None,
+        };
+
+        let message = klogparts["message"].to_owned();
+
+        Ok(Entry {
+            facility,
+            level,
+            sequence_num: None,
+            timestamp_from_system_start,
+            message,
+        })
+    } else {
+        Ok(Entry {
+            facility: None,
+            level: None,
+            sequence_num: None,
+            timestamp_from_system_start: None,
+            message: line.to_owned(),
+        })
+    }
 }
 
 // ************************** Private
@@ -515,21 +521,44 @@ mod test {
     #[test]
     fn test_parse_serialize() {
         let line1 = "<6>a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
-        let e1r = entry_from_line(line1);
-        assert!(e1r.is_ok());
-        let line1again = e1r.unwrap().to_klog_str();
+        let entries1 = entries_from_lines(line1).unwrap();
+        let e1r = entries1.get(0).unwrap();
+        let line1again = e1r.to_klog_str().unwrap();
         assert_eq!(line1, line1again);
 
         let line2 = "<7>[   233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
-        let e2r = entry_from_line(line2);
-        assert!(e2r.is_ok());
-        let line2again = e2r.unwrap().to_klog_str();
+        let entries2 = entries_from_lines(line2).unwrap();
+        let e2r = entries2.get(0).unwrap();
+        let line2again = e2r.to_klog_str().unwrap();
         assert_eq!(line2, line2again);
 
         let line3 = "233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
-        let e3r = entry_from_line(line3);
-        assert!(e3r.is_ok());
-        let line3again = e3r.unwrap().to_klog_str();
+        let entries3 = entries_from_lines(line3).unwrap();
+        let e3r = entries3.get(0).unwrap();
+        let line3again = e3r.to_klog_str().unwrap();
+        assert_eq!(line3, line3again);
+    }
+
+    #[test]
+    fn test_parse_multiline() {
+        let line1 = "<6>a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
+        let line2 = "<7>[   233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
+        let line3 = "233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15";
+
+        let lines = [line1, line2, line3].join("\n");
+
+        let mut entries = entries_from_lines(&lines).unwrap();
+
+        let e1r = entries.remove(0);
+        let line1again = e1r.to_klog_str().unwrap();
+        assert_eq!(line1, line1again);
+
+        let e2r = entries.remove(0);
+        let line2again = e2r.to_klog_str().unwrap();
+        assert_eq!(line2, line2again);
+
+        let e3r = entries.remove(0);
+        let line3again = e3r.to_klog_str().unwrap();
         assert_eq!(line3, line3again);
     }
 }
