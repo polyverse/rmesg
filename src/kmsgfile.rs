@@ -74,7 +74,7 @@ impl KMsgEntriesIter {
     pub fn with_options(file_override: Option<String>, raw: bool) -> Result<Self, RMesgError> {
         let path = file_override.as_deref().unwrap_or(DEV_KMSG_PATH);
 
-        let file = match stdfs::File::open(path.clone()) {
+        let file = match stdfs::File::open(path) {
             Ok(fc) => fc,
             Err(e) => {
                 return Err(RMesgError::DevKMsgFileOpenError(format!(
