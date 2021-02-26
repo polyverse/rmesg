@@ -404,7 +404,7 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
     let klt = klogtype.clone() as libc::c_int;
 
     // extract mutable u8 raw pointer from buf
-    // and typecast it (very dangerously) to i8
+    // and typecast it (very dangerously) to c_char
     // fortunately it's all one-byte long so
     // should be reasonably okay.
     let buf_cchar = buf_u8.as_mut_ptr() as *mut libc::c_char;

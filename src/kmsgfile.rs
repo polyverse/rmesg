@@ -1,11 +1,8 @@
 use crate::common;
 use crate::entry::{Entry, EntryParsingError};
-/// This crate provides a klogctl interface from Rust.
-/// klogctl is a Linux syscall that allows reading the Linux Kernel Log buffer.
-/// https://elinux.org/Debugging_by_printing
-///
-/// This is a crate/library version of the popular Linux utility 'dmesg'
-/// https://en.wikipedia.org/wiki/Dmesg
+/// This crate provides a /dev/kmsg file interface from Rust. Reading from this
+/// virtual device is the more modern and simpler way to read the kernel
+/// log buffer than making syscalls directly.
 ///
 /// This allows Rust programs to consume dmesg-like output programmatically.
 ///
