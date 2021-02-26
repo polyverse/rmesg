@@ -407,7 +407,7 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
     // and typecast it (very dangerously) to i8
     // fortunately it's all one-byte long so
     // should be reasonably okay.
-    let buf_i8 = buf_u8.as_mut_ptr() as *mut i8;
+    let buf_cchar = buf_u8.as_mut_ptr() as *mut libc::c_char;
 
     let buflen = match libc::c_int::try_from(buf_u8.len()) {
         Ok(i) => i,
@@ -420,7 +420,7 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
         }
     };
 
-    let response_cint: libc::c_int = unsafe { klogctl(klt, buf_i8, buflen) };
+    let response_cint: libc::c_int = unsafe { klogctl(klt, buf_cchar, buflen) };
 
     if response_cint < 0 {
         let err = errno();
