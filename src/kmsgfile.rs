@@ -49,7 +49,7 @@ lazy_static! {
     .unwrap();
 }
 
-/// While reading the kernel log buffer is very useful in and of itself (expecially when running the CLI),
+/// While reading the kernel log buffer is very useful in and of itself (especially when running the CLI),
 /// a lot more value is unlocked when it can be tailed line-by-line.
 ///
 /// This struct provides the facilities to do that. It implements an iterator to easily iterate
@@ -119,7 +119,7 @@ impl Iterator for KMsgEntriesIter {
     }
 }
 
-/// While reading the kernel log buffer is very useful in and of itself (expecially when running the CLI),
+/// While reading the kernel log buffer is very useful in and of itself (especially when running the CLI),
 /// a lot more value is unlocked when it can be tailed line-by-line.
 ///
 /// This struct provides the facilities to do that. It implements an iterator to easily iterate

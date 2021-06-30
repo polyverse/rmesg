@@ -68,6 +68,10 @@ pub fn log_entries(b: Backend, clear: bool) -> Result<Vec<entry::Entry>, error::
                     "Falling back from device file to klogctl syscall due to error: {}",
                     s
                 );
+                if std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM) {
+                    eprintln!("Help: run rmesg with sudo");
+                    return Ok(vec![]);
+                }
                 klogctl::klog(clear)
             }
             Err(e) => Err(e),
