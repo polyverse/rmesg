@@ -89,7 +89,7 @@ lazy_static! {
     .unwrap();
 }
 
-/// While reading the kernel log buffer is very useful in and of itself (expecially when running the CLI),
+/// While reading the kernel log buffer is very useful in and of itself (especially when running the CLI),
 /// a lot more value is unlocked when it can be tailed line-by-line.
 ///
 /// This struct provides the facilities to do that. It implements an iterator to easily iterate
@@ -359,7 +359,7 @@ pub fn entries_from_lines(all_lines: &str) -> Result<Vec<Entry>, EntryParsingErr
         .map(|line| entry_from_line(line))
         .collect();
 
-    Ok(entry_results?)
+    entry_results
 }
 
 pub fn entry_from_line(line: &str) -> Result<Entry, EntryParsingError> {
