@@ -209,10 +209,17 @@ pub fn kmsg_raw(file_override: Option<String>) -> Result<String, RMesgError> {
     let file = match stdfs::File::open(path) {
         Ok(fc) => fc,
         Err(e) => {
-            return Err(RMesgError::DevKMsgFileOpenError(format!(
-                "Unable to open file {}: {}",
-                path, e
-            )))
+            if std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM) {
+                return Err(RMesgError::OperationNotPermitted(format!(
+                    "Open File {}",
+                    path
+                )));
+            } else {
+                return Err(RMesgError::DevKMsgFileOpenError(format!(
+                    "Unable to open file {}: {}",
+                    path, e
+                )));
+            }
         }
     };
 
@@ -223,7 +230,7 @@ pub fn kmsg_raw(file_override: Option<String>) -> Result<String, RMesgError> {
         Ok(_) => {}
         Err(e) => {
             return Err(RMesgError::DevKMsgFileOpenError(format!(
-                "Unable to open file {}: {}",
+                "Unable to read from file {}: {}",
                 path, e
             )))
         }
