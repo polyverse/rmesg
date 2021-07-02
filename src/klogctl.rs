@@ -424,10 +424,15 @@ pub fn safely_wrapped_klogctl(klogtype: KLogType, buf_u8: &mut [u8]) -> Result<u
 
     if response_cint < 0 {
         let err = errno();
-        return Err(RMesgError::InternalError(format!(
-            "Request ({}) to klogctl failed. errno={}",
-            klogtype, err
-        )));
+
+        if err.0 == libc::EPERM {
+            return Err(RMesgError::OperationNotPermitted(format!("{}", klogtype)));
+        } else {
+            return Err(RMesgError::InternalError(format!(
+                "Request ({}) to klogctl failed. errno={}",
+                klogtype, err
+            )));
+        }
     }
 
     let response = match usize::try_from(response_cint) {

@@ -39,10 +39,7 @@ impl Display for RMesgError {
                     "Failed to add a Duration to SystemTime".to_owned(),
                 Self::KLogTimestampsDisabled => "Kernel Log timestamps are disabled".to_owned(),
                 Self::DevKMsgFileOpenError(s) => s.to_owned(),
-                Self::OperationNotPermitted(s) => format!(
-                    "OperationNotPermitted: {}\nHint: Try running with 'sudo' or as root.",
-                    s
-                ),
+                Self::OperationNotPermitted(s) => format!("OperationNotPermitted: {}", s),
             }
         )
     }

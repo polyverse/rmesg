@@ -2,7 +2,7 @@
 /// This CLI builds on top of the eponymous crate and provides a command-line utility.
 ///
 use clap::{App, Arg};
-use futures_util::stream::TryStreamExt;
+use futures_util::stream::StreamExt;
 use std::error::Error;
 
 #[derive(Debug)]
@@ -20,10 +20,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if !opts.follow {
         nofollow(opts);
     } else {
-        let mut entries = rmesg::logs_stream(opts.backend, opts.clear, opts.raw).await?;
+        let mut entries = match rmesg::logs_stream(opts.backend, opts.clear, opts.raw).await {
+            Ok(entries) => entries,
+            Err(e) => {
+                eprintln!("Unable to get logs stream: {}", e);
 
-        while let Some(entry) = entries.try_next().await? {
-            println!("{}", entry);
+                if let rmesg::error::RMesgError::OperationNotPermitted(_) = e {
+                    eprintln!("\nHint: Try using 'sudo' or run the program as root/superuser.");
+                }
+
+                return Ok(());
+            }
+        };
+
+        while let Some(result) = entries.next().await {
+            match result {
+                Ok(entry) => println!("{}", entry),
+                Err(e) => {
+                    eprintln!("Unable to get logs stream: {}", e);
+
+                    if let rmesg::error::RMesgError::OperationNotPermitted(_) = e {
+                        eprintln!("\nHint: Try using 'sudo' or run the program as root/superuser.");
+                    }
+
+                    return Ok(());
+                }
+            }
         }
     }
 
@@ -32,12 +54,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn nofollow(opts: Options) {
     if opts.raw {
-        let raw = rmesg::logs_raw(opts.backend, opts.clear).unwrap();
-        print!("{}", raw)
+        match rmesg::logs_raw(opts.backend, opts.clear) {
+            Ok(raw) => {
+                print!("{}", raw)
+            }
+            Err(e) => {
+                eprintln!("Unable to get raw logs: {}", e);
+
+                if let rmesg::error::RMesgError::OperationNotPermitted(_) = e {
+                    eprintln!("\nHint: Try using 'sudo' or run the program as root/superuser.");
+                }
+            }
+        }
     } else {
-        let entries = rmesg::log_entries(opts.backend, opts.clear).unwrap();
-        for entry in entries {
-            println!("{}", entry)
+        match rmesg::log_entries(opts.backend, opts.clear) {
+            Ok(entries) => {
+                for entry in entries {
+                    println!("{}", entry)
+                }
+            }
+            Err(e) => {
+                eprintln!("Unable to get log entries: {}", e);
+
+                if let rmesg::error::RMesgError::OperationNotPermitted(_) = e {
+                    eprintln!("\nHint: Try using 'sudo' or run the program as root/superuser.");
+                }
+            }
         }
     }
 }
