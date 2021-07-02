@@ -74,10 +74,17 @@ impl KMsgEntriesIter {
         let file = match stdfs::File::open(path) {
             Ok(fc) => fc,
             Err(e) => {
-                return Err(RMesgError::DevKMsgFileOpenError(format!(
-                    "Unable to open file {}: {}",
-                    path, e
-                )))
+                if e.raw_os_error() == Some(libc::EPERM) {
+                    return Err(RMesgError::OperationNotPermitted(format!(
+                        "Open File {}",
+                        path
+                    )));
+                } else {
+                    return Err(RMesgError::DevKMsgFileOpenError(format!(
+                        "Unable to open file {}: {}",
+                        path, e
+                    )));
+                }
             }
         };
 
@@ -148,10 +155,17 @@ impl KMsgEntriesStream {
         let file = match tokiofs::File::open(path).await {
             Ok(fc) => fc,
             Err(e) => {
-                return Err(RMesgError::DevKMsgFileOpenError(format!(
-                    "Unable to open file {}: {}",
-                    path, e
-                )))
+                if e.raw_os_error() == Some(libc::EPERM) {
+                    return Err(RMesgError::OperationNotPermitted(format!(
+                        "Open File {}",
+                        path
+                    )));
+                } else {
+                    return Err(RMesgError::DevKMsgFileOpenError(format!(
+                        "Unable to open file {}: {}",
+                        path, e
+                    )));
+                }
             }
         };
 
@@ -209,7 +223,7 @@ pub fn kmsg_raw(file_override: Option<String>) -> Result<String, RMesgError> {
     let file = match stdfs::File::open(path) {
         Ok(fc) => fc,
         Err(e) => {
-            if std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM) {
+            if e.raw_os_error() == Some(libc::EPERM) {
                 return Err(RMesgError::OperationNotPermitted(format!(
                     "Open File {}",
                     path
@@ -229,10 +243,17 @@ pub fn kmsg_raw(file_override: Option<String>) -> Result<String, RMesgError> {
     match noblock_file.read_available_to_string(&mut file_contents) {
         Ok(_) => {}
         Err(e) => {
-            return Err(RMesgError::DevKMsgFileOpenError(format!(
-                "Unable to read from file {}: {}",
-                path, e
-            )))
+            if e.raw_os_error() == Some(libc::EPERM) {
+                return Err(RMesgError::OperationNotPermitted(format!(
+                    "Read from File {}",
+                    path
+                )));
+            } else {
+                return Err(RMesgError::DevKMsgFileOpenError(format!(
+                    "Unable to read from file {}: {}",
+                    path, e
+                )));
+            }
         }
     }
 
