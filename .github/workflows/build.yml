@@ -10,18 +10,18 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Style (rustfmt)
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo fmt --all -- --check
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse//rust-dev-env:latest cargo fmt --all -- --check
 
         # Allow this lint: -D clippy::field-reassign-with-default
         # Due to this: https://github.com/GREsau/schemars/pull/65
       - name: Lint (Clippy)
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env:latest cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Build
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo build-all-features --workspace
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t ghcr.io/polyverse/rust-dev-env:latest cargo build-all-features --workspace
 
       - name: Test
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo test-all-features --workspace
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged ghcr.io/polyverse/rust-dev-env:latest cargo test-all-features --workspace
 
       - name: Test cargo install
-        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged ghcr.io/polyverse/rust-dev-env/rust-dev-env:latest cargo install --path . -f
+        run: docker run -v cargo-cache:/root/.cargo/registry -v $PWD:/volume --rm -t --privileged ghcr.io/polyverse/rust-dev-env:latest cargo install --path . -f
