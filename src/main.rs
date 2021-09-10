@@ -85,7 +85,7 @@ fn nofollow(opts: Options) {
 }
 
 fn parse_args() -> Options {
-    let matches = App::new("rmest: A 'dmesg' port onto Rust")
+    let matches = App::new("rmesg: A 'dmesg' port onto Rust")
         .version("0.2.0")
         .author("Archis Gore <archis@polyverse.com>")
         .about(

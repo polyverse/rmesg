@@ -24,7 +24,7 @@ cargo install rmesg
 ### Usage
 
 ```.bash
-rmest: A 'dmesg' port onto Rust 1.0.0
+rmesg: A 'dmesg' port onto Rust 1.0.0
 Archis Gore <archis@polyverse.com>
 Reads (and prints) the kernel log buffer. Does not support all dmesg options (yet).
 
