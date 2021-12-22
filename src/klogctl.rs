@@ -354,10 +354,8 @@ pub fn klog_timestamps_enable(desired: bool) -> Result<(), RMesgError> {
 // OR
 // <5>[   233434.343533] a.out[4054]: segfault at 7ffd5503d358 ip 00007ffd5503d358 sp 00007ffd5503d258 error 15
 pub fn entries_from_lines(all_lines: &str) -> Result<Vec<Entry>, EntryParsingError> {
-    let entry_results: Result<Vec<Entry>, EntryParsingError> = all_lines
-        .lines()
-        .map(|line| entry_from_line(line))
-        .collect();
+    let entry_results: Result<Vec<Entry>, EntryParsingError> =
+        all_lines.lines().map(entry_from_line).collect();
 
     entry_results
 }

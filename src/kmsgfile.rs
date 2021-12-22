@@ -270,10 +270,8 @@ pub fn kmsg_raw(file_override: Option<String>) -> Result<String, RMesgError> {
 ///
 pub fn kmsg(file_override: Option<String>) -> Result<Vec<Entry>, RMesgError> {
     let file_contents = kmsg_raw(file_override)?;
-    let entry_results: Result<Vec<Entry>, EntryParsingError> = file_contents
-        .lines()
-        .map(|line| entry_from_line(line))
-        .collect();
+    let entry_results: Result<Vec<Entry>, EntryParsingError> =
+        file_contents.lines().map(entry_from_line).collect();
 
     Ok(entry_results?)
 }
